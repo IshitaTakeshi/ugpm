@@ -12,6 +12,9 @@
 #include <thread>
 
 namespace ugpm {
+
+using RowMajorMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+
 enum QueryType { kVecVec, kVec, kSingle };
 
 const int kOverlap = 8;
@@ -799,11 +802,10 @@ public:
     K_int_K_inv_.resize(3, MatX(nb_state_, nb_state_));
     std::vector<VecX> d_r_var(3, VecX(nb_state_));
     std::vector<VecX> acc_var(3, VecX(nb_state_));
+    const MatX I = MatX::Identity(nb_state_, nb_state_);
     for (int i = 0; i < 6; ++i) {
       MatX K = seKernel(state_time_, state_time_, hyper_[i].l2, hyper_[i].sf2);
-      MatX temp_to_inv(nb_state_, nb_state_);
-      temp_to_inv = K + hyper_[i].sz2 * MatX::Identity(nb_state_, nb_state_);
-      K_inv_[i] = temp_to_inv.inverse();
+      K_inv_[i] = (K + hyper_[i].sz2 * I).inverse();
       KK_inv_[i] = K * K_inv_[i];
 
       if (i < 3) {
@@ -867,12 +869,9 @@ public:
       state_cor_.resize(6 * nb_state_, 6 * nb_state_);
       MatX state_J(3 * nb_gyr_ + 3 * nb_acc_, 6 * nb_state_);
       state_J.setZero();
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-          temp_J_0_r(3 * nb_gyr_, nb_state_);
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-          temp_J_1_r(3 * nb_gyr_, nb_state_);
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-          temp_J_2_r(3 * nb_gyr_, nb_state_);
+      RowMajorMatrix temp_J_0_r(3 * nb_gyr_, nb_state_);
+      RowMajorMatrix temp_J_1_r(3 * nb_gyr_, nb_state_);
+      RowMajorMatrix temp_J_2_r(3 * nb_gyr_, nb_state_);
       std::vector<double *> param;
       param.push_back(&(state_d_r_(0, 0)));
       param.push_back(&(state_d_r_(0, 1)));
@@ -887,18 +886,12 @@ public:
       state_J.block(0, nb_state_, 3 * nb_gyr_, nb_state_) = temp_J_1_r;
       state_J.block(0, 2 * nb_state_, 3 * nb_gyr_, nb_state_) = temp_J_2_r;
 
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-          temp_J_0(3 * nb_acc_, nb_state_);
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-          temp_J_1(3 * nb_acc_, nb_state_);
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-          temp_J_2(3 * nb_acc_, nb_state_);
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-          temp_J_3(3 * nb_acc_, nb_state_);
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-          temp_J_4(3 * nb_acc_, nb_state_);
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-          temp_J_5(3 * nb_acc_, nb_state_);
+      RowMajorMatrix temp_J_0(3 * nb_acc_, nb_state_);
+      RowMajorMatrix temp_J_1(3 * nb_acc_, nb_state_);
+      RowMajorMatrix temp_J_2(3 * nb_acc_, nb_state_);
+      RowMajorMatrix temp_J_3(3 * nb_acc_, nb_state_);
+      RowMajorMatrix temp_J_4(3 * nb_acc_, nb_state_);
+      RowMajorMatrix temp_J_5(3 * nb_acc_, nb_state_);
       param.clear();
       param.push_back(&(state_d_r_(0, 0)));
       param.push_back(&(state_d_r_(0, 1)));
