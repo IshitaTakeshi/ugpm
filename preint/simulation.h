@@ -23,7 +23,9 @@ struct SineProperties3 {
 
 class RandomGenerator {
 public:
-  RandomGenerator() : random_eng_(std::random_device()()) {}
+  RandomGenerator() : random_eng_(std::random_device()()) {
+    random_eng_.seed(3939);
+  }
 
   double randUniform(double from, double to) {
     std::uniform_real_distribution<double> distr(from, to);
