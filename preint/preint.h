@@ -27,19 +27,19 @@ public:
   // Constructor given IMU data and inference timestamps
   ImuPreintegration(const ImuData &imu_data, const double start_t,
                     const std::vector<std::vector<double>> &infer_t,
-                    const PreintOption opt, const PreintPrior prior,
+                    const PreintOption & opt, const PreintPrior & prior,
                     const bool rot_only = false, const int overlap = kOverlap);
 
   // Constructor overloading given only a vector of timestamps
   ImuPreintegration(const ImuData &imu_data, const double start_t,
-                    const std::vector<double> &infer_t, const PreintOption opt,
-                    const PreintPrior prior, const bool rot_only = false,
+                    const std::vector<double> &infer_t, const PreintOption & opt,
+                    const PreintPrior & prior, const bool rot_only = false,
                     const int overlap = kOverlap);
 
   // Constructor overloading given only a one timestamp
   ImuPreintegration(const ImuData &imu_data, const double start_t,
-                    const double infer_t, const PreintOption opt,
-                    const PreintPrior prior, const bool rot_only = false,
+                    const double infer_t, const PreintOption & opt,
+                    const PreintPrior & prior, const bool rot_only = false,
                     const int overlap = kOverlap);
 
   // Get the preintegrated measurement as per indexed in the given inference
@@ -757,14 +757,13 @@ public:
     double temp_start_infer_t =
         start_t_ - (((double)nb_overlap_) / state_freq_);
     double temp_infer_duration = (nb_state_ - 1) / state_freq_;
-    std::vector<double> t_vect(nb_state_);
     std::vector<double> t_vect_dt(nb_state_);
     for (int i = 0; i < nb_state_; ++i) {
       state_time_(i) = temp_start_infer_t + ((double)i) / state_freq_;
-      t_vect[i] = state_time_(i);
       t_vect_dt[i] = state_time_(i) + kNumDtJacobianDelta;
     }
-    auto temp_imu_data = imu_data.get(t_vect[0], t_vect.back());
+
+    auto temp_imu_data = imu_data.get(state_time_(0), state_time_(state_time_.size() - 1));
 
     // Fill the private structures and other variables
     nb_gyr_ = temp_imu_data.gyr.size();
@@ -787,6 +786,7 @@ public:
     }
 
     // Get prior about the preintegrated measurements from LPM preintegration
+    const std::vector<double> t_vect(state_time_.data(), state_time_.data() + state_time_.size());
     initialiseStateWithLPM(temp_imu_data, t_vect, t_vect_dt, bias_prior);
 
     initialiseStateDiff(temp_imu_data, t_vect, t_vect_dt);
@@ -1197,8 +1197,8 @@ private:
   std::vector<MatX> K_inv_;
   std::vector<MatX> K_int_K_inv_;
 
-  void initialiseStateWithLPM(ImuData &imu_data, std::vector<double> &t_vect,
-                              std::vector<double> &t_vect_dt,
+  void initialiseStateWithLPM(const ImuData &imu_data, const std::vector<double> &t_vect,
+                              const std::vector<double> &t_vect_dt,
                               PreintPrior bias_prior = PreintPrior()) {
     PreintOption preint_opt;
     preint_opt.min_freq = 500;
@@ -1213,7 +1213,7 @@ private:
     state_acc_.resize(nb_state_, 3);
     d_r_dt_local_.resize(3, nb_state_);
     state_r_temp_.resize(3, nb_state_);
-    Mat3 start_R = preint.get(2, 0).delta_R;
+    const Mat3 start_R = preint.get(2, 0).delta_R;
     std::vector<double> revolution(2, 0.0);
     std::vector<Vec3, Eigen::aligned_allocator<Vec3>> prev(2, Vec3::Zero());
     for (int i = nb_overlap_; i < nb_state_; ++i) {
@@ -1230,7 +1230,7 @@ private:
       }
       state_d_r_.row(i) =
           ((prev[1] - prev[0]) / kNumDtJacobianDelta).transpose();
-      Vec3 temp_acc = start_R.transpose() *
+      const Vec3 temp_acc = start_R.transpose() *
                       ((preint.get(1, i).delta_v - preint.get(0, i).delta_v) /
                        kNumDtJacobianDelta);
       state_acc_.row(i) = temp_acc.transpose();
@@ -1258,7 +1258,7 @@ private:
       }
       state_d_r_.row(i) =
           ((prev[1] - prev[0]) / kNumDtJacobianDelta).transpose();
-      Vec3 temp_acc = start_R.transpose() *
+      const Vec3 temp_acc = start_R.transpose() *
                       ((preint.get(1, i).delta_v - preint.get(0, i).delta_v) /
                        kNumDtJacobianDelta);
       state_acc_.row(i) = temp_acc.transpose();
@@ -1268,8 +1268,8 @@ private:
       state_r_temp_.col(i) = prev[0];
     }
   }
-  void initialiseStateDiff(ImuData &imu_data, std::vector<double> &t_vect,
-                           std::vector<double> &t_vect_dt) {
+  void initialiseStateDiff(const ImuData &imu_data, const std::vector<double> &t_vect,
+                           const std::vector<double> &t_vect_dt) {
 
     // Prepare for the timeshift diff
     {
@@ -1455,7 +1455,7 @@ private:
     }
   }
 
-  void initialiseHyperParam(ImuData &imu_data) {
+  void initialiseHyperParam(const ImuData &imu_data) {
     for (int i = 0; i < 6; ++i) {
       if (i < 3) {
         hyper_[i].mean = state_d_r_.col(i).mean();
@@ -1510,8 +1510,8 @@ private:
 // Constructor given IMU data and inference timestamps
 ImuPreintegration::ImuPreintegration(
     const ImuData &imu_data, const double start_t,
-    const std::vector<std::vector<double>> &infer_t, const PreintOption opt,
-    const PreintPrior prior, const bool rot_only, const int overlap)
+    const std::vector<std::vector<double>> &infer_t, const PreintOption & opt,
+    const PreintPrior & prior, const bool rot_only, const int overlap)
     : imu_data_(imu_data) {
   if (!imu_data_.checkFrequency()) {
     std::cout
@@ -1662,8 +1662,8 @@ ImuPreintegration::ImuPreintegration(
 ImuPreintegration::ImuPreintegration(const ImuData &imu_data,
                                      const double start_t,
                                      const std::vector<double> &infer_t,
-                                     const PreintOption opt,
-                                     const PreintPrior prior,
+                                     const PreintOption & opt,
+                                     const PreintPrior & prior,
                                      const bool rot_only, const int overlap)
     : ImuPreintegration(imu_data, start_t,
                         std::vector<std::vector<double>>(1, infer_t), opt,
@@ -1676,8 +1676,8 @@ ImuPreintegration::ImuPreintegration(const ImuData &imu_data,
 // Constructor overloading given only a one timestamp
 ImuPreintegration::ImuPreintegration(const ImuData &imu_data,
                                      const double start_t, const double infer_t,
-                                     const PreintOption opt,
-                                     const PreintPrior prior,
+                                     const PreintOption & opt,
+                                     const PreintPrior & prior,
                                      const bool rot_only, const int overlap)
     : ImuPreintegration(
           imu_data, start_t,
