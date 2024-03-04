@@ -458,7 +458,7 @@ public:
         infer_t.pop_back();
       }
       SortIndexTracker2<double> temp_t(infer_t);
-      velPosPreintLPMPartial(temp_t, preint_);
+      velPosPreintLPMPartial(temp_t, acc_data_, acc_time_, preint_);
     }
   }
 
@@ -490,20 +490,20 @@ private:
                        const std::vector<MatX> &d_acc_d_bw,
                        const std::vector<VecX> &d_acc_d_dt,
                        std::vector<std::vector<PreintMeas>> &preint) {
-
     SortIndexTracker2<double> time(t);
 
     // Compute with the time shift (could be optimised somehow I guess)
     MatX save_acc_data = acc_data_;
     VecX save_acc_time = acc_time_;
     for (int i = 0; i < nb_acc_; ++i) {
-      Vec3 temp_d_acc_d_dt;
-      temp_d_acc_d_dt << d_acc_d_dt[0].coeff(i), d_acc_d_dt[1].coeff(i),
-          d_acc_d_dt[2].coeff(i);
+      const Vec3 temp_d_acc_d_dt(
+          d_acc_d_dt[0].coeff(i),
+          d_acc_d_dt[1].coeff(i),
+          d_acc_d_dt[2].coeff(i));
       acc_data_.col(i) += kNumDtJacobianDelta * temp_d_acc_d_dt;
       acc_time_[i] -= kNumDtJacobianDelta;
     }
-    velPosPreintLPMPartial(time, preint);
+    velPosPreintLPMPartial(time, acc_data_, acc_time_, preint);
 
     acc_data_ = save_acc_data;
     acc_time_ = save_acc_time;
@@ -660,8 +660,11 @@ private:
     }
   }
 
-  void velPosPreintLPMPartial(const SortIndexTracker2<double> &time,
-                              std::vector<std::vector<PreintMeas>> &preint) {
+  void velPosPreintLPMPartial(
+      const SortIndexTracker2<double> &time,
+      const MatX & acc_data,
+      const VecX & acc_time,
+      std::vector<std::vector<PreintMeas>> &preint) {
     int data_ptr = 0;
 
     // For each of the query points of the timeline
@@ -673,7 +676,7 @@ private:
             "LPM Partial: the start_time is not in the query domain");
       }
     }
-    while (acc_time_[data_ptr + 1] < start_t_) {
+    while (acc_time[data_ptr + 1] < start_t_) {
       data_ptr++;
       if (data_ptr == (nb_acc_ - 1)) {
         throw std::range_error(
@@ -683,24 +686,24 @@ private:
 
     for (int axis = 0; axis < 3; ++axis) {
       int ptr = data_ptr;
-      double alpha = (acc_data_(axis, ptr + 1) - acc_data_(axis, ptr)) /
-                     (acc_time_[ptr + 1] - acc_time_[ptr]);
-      double beta = acc_data_(axis, ptr) - alpha * acc_time_[ptr];
+      double alpha = (acc_data(axis, ptr + 1) - acc_data(axis, ptr)) /
+                     (acc_time[ptr + 1] - acc_time[ptr]);
+      double beta = acc_data(axis, ptr) - alpha * acc_time[ptr];
       double t_0 = start_t_;
-      double t_1 = acc_time_[ptr + 1];
-      double d_0 = alpha * acc_time_[ptr] + beta;
-      double d_1 = acc_data_(axis, ptr + 1);
+      double t_1 = acc_time[ptr + 1];
+      double d_0 = alpha * acc_time[ptr] + beta;
+      double d_1 = acc_data(axis, ptr + 1);
       double d_v_backup = 0;
       double d_p_backup = 0;
 
       for (int i = start_index; i < time.size(); ++i) {
         // Move the data pointer so that the query time is in between two data
         // points
-        if (time.get(i) > acc_time_[0]) {
+        if (time.get(i) > acc_time[0]) {
           bool loop = true;
           while (loop) {
-            if ((time.get(i) >= acc_time_[ptr]) &&
-                (time.get(i) <= acc_time_[ptr + 1])) {
+            if ((time.get(i) >= acc_time[ptr]) &&
+                (time.get(i) <= acc_time[ptr + 1])) {
               loop = false;
             } else {
               if (ptr < (nb_acc_ - 2)) {
@@ -711,10 +714,10 @@ private:
                 d_v_backup = d_v_backup + ((t_1 - t_0) * (d_0 + d_1) / 2.0);
 
                 ptr++;
-                t_0 = acc_time_[ptr];
-                t_1 = acc_time_[ptr + 1];
-                d_0 = acc_data_(axis, ptr);
-                d_1 = acc_data_(axis, ptr + 1);
+                t_0 = acc_time[ptr];
+                t_1 = acc_time[ptr + 1];
+                d_0 = acc_data(axis, ptr);
+                d_1 = acc_data(axis, ptr + 1);
 
                 alpha = (d_1 - d_0) / (t_1 - t_0);
                 beta = d_0 - alpha * t_0;
