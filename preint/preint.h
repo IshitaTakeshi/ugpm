@@ -608,16 +608,16 @@ private:
         }
 
         // Integrate
-        double time_temp = time.get(i);
-        double temp_d_1 = alpha * time_temp + beta;
-        double temp_d_v =
-            d_v_backup + ((time_temp - t_0) * (d_0 + temp_d_1) / 2.0);
-        double temp_d_p = d_p_backup + d_v_backup * (time_temp - t_0) +
+        const double time_temp = time.get(i);
+        const double temp_d_1 = alpha * time_temp + beta;
+        const double temp_d_v =
+                  d_v_backup + ((time_temp - t_0) * (d_0 + temp_d_1) / 2.0);
+        const double temp_d_p = d_p_backup + d_v_backup * (time_temp - t_0) +
                           ((t_0 - time_temp) * (t_0 - time_temp) *
                            (2.0 * d_0 + temp_d_1) / 6.0);
-        double temp_d_v_var = (time_temp - start_t_) * acc_var_;
-        double temp_d_p_var = (time_temp - start_t_) * temp_d_v_var;
-        std::pair<double, double> index = time.getIndexPair(i);
+        const double temp_d_v_var = (time_temp - start_t_) * acc_var_;
+        const double temp_d_p_var = (time_temp - start_t_) * temp_d_v_var;
+        const std::pair<double, double> index = time.getIndexPair(i);
 
         preint[index.first][index.second].d_delta_v_d_t(axis) =
             (preint[index.first][index.second].delta_v(axis) - temp_d_v) /
@@ -965,7 +965,7 @@ public:
     solver_opt.function_tolerance = 1e-10;
     ceres::Solve(solver_opt, &optimisation, &summary);
 
-    finishStateDiff();
+    finishStateDiff(d_r_dt_local_shift_, delta_r_time_, delta_r_bw_, d_r_bw_local_shift_, d_state_bw_, d_d_r_dt_);
 
     // Prepare object for later inference
     alpha_.resize(6, VecX(nb_state_));
@@ -1424,7 +1424,13 @@ private:
     state_r_temp_.resize(0, 0);
   }
 
-  void finishStateDiff() {
+  void finishStateDiff(
+      const MatX & d_r_dt_local_shift,
+      const MatX & delta_r_time,
+      const std::vector<MatX> & delta_r_bw,
+      const std::vector<MatX> & d_r_bw_local_shift,
+      std::vector<MatX> & d_state_bw,
+      std::vector<VecX> & d_d_r_dt) const {
     MatX state_r(nb_state_, 3);
     VecX dt_state = (state_time_.array() - start_t_).matrix();
 
@@ -1435,35 +1441,32 @@ private:
       }
     }
 
-    d_d_r_dt_.resize(3, VecX(nb_state_));
-    d_state_bw_.resize(3, MatX(nb_state_, 3));
+    d_d_r_dt.resize(3, VecX(nb_state_));
+    d_state_bw.resize(3, MatX(nb_state_, 3));
     for (int i = 0; i < nb_state_; ++i) {
       Vec3 d_r = inverseJacobianRighthandSO3(state_r.row(i).transpose()) *
                  d_r_dt_local_.col(i);
 
       // For the timeshift
-      Vec3 temp_r = state_r.row(i).transpose() +
+      const Vec3 temp_r = state_r.row(i).transpose() +
                     inverseJacobianRighthandSO3(state_r.row(i).transpose()) *
-                        delta_r_time_.col(i);
-      Vec3 d_r_dt =
-          inverseJacobianRighthandSO3(temp_r) * d_r_dt_local_shift_.col(i);
+                        delta_r_time.col(i);
+      const Vec3 d_r_dt = inverseJacobianRighthandSO3(temp_r) * d_r_dt_local_shift.col(i);
       Vec3 temp_d_d_r_d_t = (d_r_dt - d_r) / kNumDtJacobianDelta;
-      d_d_r_dt_[0][i] = temp_d_d_r_d_t[0];
-      d_d_r_dt_[1][i] = temp_d_d_r_d_t[1];
-      d_d_r_dt_[2][i] = temp_d_d_r_d_t[2];
+      d_d_r_dt[0][i] = temp_d_d_r_d_t[0];
+      d_d_r_dt[1][i] = temp_d_d_r_d_t[1];
+      d_d_r_dt[2][i] = temp_d_d_r_d_t[2];
 
       // For the gyr bias
       for (int axis = 0; axis < 3; ++axis) {
-        Vec3 temp_r_w =
+        const Vec3 temp_r_w =
             state_r.row(i).transpose() +
-            inverseJacobianRighthandSO3(state_r.row(i).transpose()) *
-                delta_r_bw_[axis].col(i);
-        Vec3 d_r_dt = inverseJacobianRighthandSO3(temp_r_w) *
-                      d_r_bw_local_shift_[axis].col(i);
-        Vec3 temp_d_d_r_d_t = (d_r_dt - d_r) / kNumGyrBiasJacobianDelta;
-        d_state_bw_[0](i, axis) = temp_d_d_r_d_t(0);
-        d_state_bw_[1](i, axis) = temp_d_d_r_d_t(1);
-        d_state_bw_[2](i, axis) = temp_d_d_r_d_t(2);
+            inverseJacobianRighthandSO3(state_r.row(i).transpose()) * delta_r_bw[axis].col(i);
+        const Vec3 d_r_dt = inverseJacobianRighthandSO3(temp_r_w) * d_r_bw_local_shift[axis].col(i);
+        const Vec3 temp_d_d_r_d_t = (d_r_dt - d_r) / kNumGyrBiasJacobianDelta;
+        d_state_bw[0](i, axis) = temp_d_d_r_d_t(0);
+        d_state_bw[1](i, axis) = temp_d_d_r_d_t(1);
+        d_state_bw[2](i, axis) = temp_d_d_r_d_t(2);
       }
     }
   }
