@@ -15,6 +15,124 @@ namespace ugpm {
 
 using RowMajorMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
+template <typename T>
+T minCovDiag(const T &cov, const double min_val = 1e-6) {
+  T output = cov;
+  for (int i = 0; i < cov.rows(); ++i) {
+    if (output(i, i) < min_val) {
+      output(i, i) = min_val;
+    }
+  }
+  return output;
+}
+
+void rotIterativeIntegration(const Eigen::MatrixXd &w,
+                             const Eigen::MatrixXd &var,
+                             const SortIndexTracker2<double> &t,
+                             const double start_t_,
+                             const int start_index_,
+                             std::vector<PreintMeas> &output) {
+
+  Mat3 rot_mat = Mat3::Identity();
+  Mat9 cov = Mat9::Zero();
+
+  output[0].delta_R = rot_mat;
+  output[0].cov = minCovDiag(cov);
+
+  output[0].dt = t.get(0) - start_t_;
+  output[0].dt_sq_half = 0.5 * (output[0].dt) * (output[0].dt);
+
+  for (int i = 0; i < (t.size() - 1); ++i) {
+    // Prepare some variables for convenience sake
+    double dt = t.get(i + 1) - t.get(i);
+    Vec3 gyr_dt = w.col(i) * dt;
+
+    double gyr_norm = gyr_dt.norm();
+
+    Mat3 e_R = Mat3::Identity();
+    Mat3 j_r = Mat3::Identity();
+
+    // If the angular velocity norm is non-null
+    if (gyr_norm > 0.0000000001) {
+
+      // Turn the angular velocity into skew-simmetric matrix
+      Mat3 gyr_skew_mat;
+      gyr_skew_mat << 0, -gyr_dt[2], gyr_dt[1], gyr_dt[2], 0, -gyr_dt[0],
+          -gyr_dt[1], gyr_dt[0], 0;
+
+      double s_gyr_norm = std::sin(gyr_norm);
+      double gyr_norm_sq = gyr_norm * gyr_norm;
+      double scalar_2 = (1 - std::cos(gyr_norm)) / gyr_norm_sq;
+      Mat3 skew_mat_sq = gyr_skew_mat * gyr_skew_mat;
+
+      e_R = e_R + ((s_gyr_norm / gyr_norm) * gyr_skew_mat) +
+            (scalar_2 * skew_mat_sq);
+
+      j_r = j_r - (scalar_2 * gyr_skew_mat) +
+            (((gyr_norm - s_gyr_norm) / (gyr_norm_sq * gyr_norm)) *
+             skew_mat_sq);
+    }
+
+    if ((i + 1) > start_index_) {
+
+      Mat3 A = e_R.transpose();
+      Mat3 B = (j_r * dt);
+      Mat3 imu_cov;
+      imu_cov << var(0, i), 0.0, 0.0, 0.0, var(1, i), 0.0, 0.0, 0.0,
+          var(2, i);
+      cov.block<3, 3>(0, 0) = A * cov.block<3, 3>(0, 0) * A.transpose() +
+                              B * imu_cov * B.transpose();
+    }
+
+    rot_mat = rot_mat * e_R;
+    output[i + 1].delta_R = rot_mat;
+    output[i + 1].cov = minCovDiag(cov);
+    output[i + 1].dt = t.get(i + 1) - start_t_;
+    output[i + 1].dt_sq_half = output[i + 1].dt * output[i + 1].dt * 0.5;
+
+    // Reproject the preintegrated measurements from in the starting frame
+    if ((i + 1) == start_index_) {
+      for (int j = 0; j < (i + 1); ++j) {
+        output[j].delta_R = rot_mat.transpose() * output[j].delta_R;
+      }
+      rot_mat = Mat3::Identity();
+      output[start_index_].delta_R = rot_mat;
+    }
+  }
+}
+
+void rotIterativeIntegration(
+    const Eigen::MatrixXd &w, const SortIndexTracker2<double> &t,
+    const double start_index_,
+    std::vector<Eigen::Matrix3d, Eigen::aligned_allocator<Eigen::Matrix3d>>
+        &output) {
+  Mat3 rot_mat = Mat3::Identity();
+  Mat9 cov = Mat9::Zero();
+
+  output[0] = rot_mat;
+
+  for (int i = 0; i < (t.size() - 1); ++i) {
+    // Prepare some variables for convenience sake
+    double dt = t.get(i + 1) - t.get(i);
+
+    Vec3 gyr_dt = w.col(i) * dt;
+
+    Mat3 e_R = expMap(gyr_dt);
+
+    rot_mat = rot_mat * e_R;
+    output[i + 1] = rot_mat;
+
+    // Reproject the preintegrated measurements from in the starting frame
+    if ((i + 1) == start_index_) {
+      for (int j = 0; j < (i + 1); ++j) {
+        output[j] = rot_mat.transpose() * output[j];
+      }
+      rot_mat = Mat3::Identity();
+      output[start_index_] = rot_mat;
+    }
+  }
+}
+
 enum QueryType { kVecVec, kVec, kSingle };
 
 const int kOverlap = 8;
@@ -319,14 +437,14 @@ private:
     }
 
     if (!bare_) {
-      rotIterativeIntegration(inter_w, inter_var, t, output);
+      rotIterativeIntegration(inter_w, inter_var, t, start_t_, start_index_, output);
 
       // Compute the numerical Jacobians for post integration
       std::vector<Mat3, Eigen::aligned_allocator<Mat3>> d_R_dt(output.size());
       std::vector<std::vector<Mat3, Eigen::aligned_allocator<Mat3>>> d_R_d_bw(
           3, std::vector<Mat3, Eigen::aligned_allocator<Mat3>>(output.size()));
 
-      rotIterativeIntegration(inter_w_shifted, t, d_R_dt);
+      rotIterativeIntegration(inter_w_shifted, t, start_index_, d_R_dt);
       for (int j = 0; j < t.size(); ++j) {
         if (interest_t[j]) {
           output[j].d_delta_R_d_t =
@@ -340,7 +458,7 @@ private:
         Vec3 offset = Vec3::Zero();
         offset(i) = kNumGyrBiasJacobianDelta;
         temp_data.colwise() += offset;
-        rotIterativeIntegration(temp_data, t, d_R_d_bw[i]);
+        rotIterativeIntegration(temp_data, t, start_index_, d_R_d_bw[i]);
         for (int j = 0; j < t.size(); ++j) {
           if (interest_t[j]) {
             output[j].d_delta_R_d_bw.col(i) =
@@ -351,127 +469,12 @@ private:
       }
     } else {
       std::vector<Mat3, Eigen::aligned_allocator<Mat3>> temp_R(t.size());
-      rotIterativeIntegration(inter_w, t, temp_R);
+      rotIterativeIntegration(inter_w, t, start_index_, temp_R);
       for (int i = 0; i < t.size(); ++i) {
         output[i].delta_R = temp_R[i];
       }
     }
     return output;
-  }
-
-  template <typename T>
-  T minCovDiag(const T &cov, const double min_val = 1e-6) const {
-    T output = cov;
-    for (int i = 0; i < cov.rows(); ++i) {
-      if (output(i, i) < min_val) {
-        output(i, i) = min_val;
-      }
-    }
-    return output;
-  }
-
-  void rotIterativeIntegration(const Eigen::MatrixXd &w,
-                               const Eigen::MatrixXd &var,
-                               const SortIndexTracker2<double> &t,
-                               std::vector<PreintMeas> &output) const {
-
-    Mat3 rot_mat = Mat3::Identity();
-    Mat9 cov = Mat9::Zero();
-
-    output[0].delta_R = rot_mat;
-    output[0].cov = minCovDiag(cov);
-
-    output[0].dt = t.get(0) - start_t_;
-    output[0].dt_sq_half = 0.5 * (output[0].dt) * (output[0].dt);
-
-    for (int i = 0; i < (t.size() - 1); ++i) {
-      // Prepare some variables for convenience sake
-      double dt = t.get(i + 1) - t.get(i);
-      Vec3 gyr_dt = w.col(i) * dt;
-
-      double gyr_norm = gyr_dt.norm();
-
-      Mat3 e_R = Mat3::Identity();
-      Mat3 j_r = Mat3::Identity();
-
-      // If the angular velocity norm is non-null
-      if (gyr_norm > 0.0000000001) {
-
-        // Turn the angular velocity into skew-simmetric matrix
-        Mat3 gyr_skew_mat;
-        gyr_skew_mat << 0, -gyr_dt[2], gyr_dt[1], gyr_dt[2], 0, -gyr_dt[0],
-            -gyr_dt[1], gyr_dt[0], 0;
-
-        double s_gyr_norm = std::sin(gyr_norm);
-        double gyr_norm_sq = gyr_norm * gyr_norm;
-        double scalar_2 = (1 - std::cos(gyr_norm)) / gyr_norm_sq;
-        Mat3 skew_mat_sq = gyr_skew_mat * gyr_skew_mat;
-
-        e_R = e_R + ((s_gyr_norm / gyr_norm) * gyr_skew_mat) +
-              (scalar_2 * skew_mat_sq);
-
-        j_r = j_r - (scalar_2 * gyr_skew_mat) +
-              (((gyr_norm - s_gyr_norm) / (gyr_norm_sq * gyr_norm)) *
-               skew_mat_sq);
-      }
-
-      if ((i + 1) > start_index_) {
-
-        Mat3 A = e_R.transpose();
-        Mat3 B = (j_r * dt);
-        Mat3 imu_cov;
-        imu_cov << var(0, i), 0.0, 0.0, 0.0, var(1, i), 0.0, 0.0, 0.0,
-            var(2, i);
-        cov.block<3, 3>(0, 0) = A * cov.block<3, 3>(0, 0) * A.transpose() +
-                                B * imu_cov * B.transpose();
-      }
-
-      rot_mat = rot_mat * e_R;
-      output[i + 1].delta_R = rot_mat;
-      output[i + 1].cov = minCovDiag(cov);
-      output[i + 1].dt = t.get(i + 1) - start_t_;
-      output[i + 1].dt_sq_half = output[i + 1].dt * output[i + 1].dt * 0.5;
-
-      // Reproject the preintegrated measurements from in the starting frame
-      if ((i + 1) == start_index_) {
-        for (int j = 0; j < (i + 1); ++j) {
-          output[j].delta_R = rot_mat.transpose() * output[j].delta_R;
-        }
-        rot_mat = Mat3::Identity();
-        output[start_index_].delta_R = rot_mat;
-      }
-    }
-  }
-
-  void rotIterativeIntegration(
-      const Eigen::MatrixXd &w, const SortIndexTracker2<double> &t,
-      std::vector<Eigen::Matrix3d, Eigen::aligned_allocator<Eigen::Matrix3d>>
-          &output) const {
-    Mat3 rot_mat = Mat3::Identity();
-    Mat9 cov = Mat9::Zero();
-
-    output[0] = rot_mat;
-
-    for (int i = 0; i < (t.size() - 1); ++i) {
-      // Prepare some variables for convenience sake
-      double dt = t.get(i + 1) - t.get(i);
-
-      Vec3 gyr_dt = w.col(i) * dt;
-
-      Mat3 e_R = expMap(gyr_dt);
-
-      rot_mat = rot_mat * e_R;
-      output[i + 1] = rot_mat;
-
-      // Reproject the preintegrated measurements from in the starting frame
-      if ((i + 1) == start_index_) {
-        for (int j = 0; j < (i + 1); ++j) {
-          output[j] = rot_mat.transpose() * output[j];
-        }
-        rot_mat = Mat3::Identity();
-        output[start_index_] = rot_mat;
-      }
-    }
   }
 
   // Compute the preintegration for the velocity and position part
