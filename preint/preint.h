@@ -235,7 +235,7 @@ public:
     }
 
     // Compute the rotational part of the preintegration
-    std::vector<PreintMeas> preint = rotPreint(t, interest_t);
+    const std::vector<PreintMeas> preint = rotPreint(t, interest_t);
 
     // Demux the preintegrated mesurements
     for (int i = 0; i < nb_infer_vec; ++i) {
@@ -294,7 +294,7 @@ private:
   Eigen::VectorXd acc_time_;
 
   std::vector<PreintMeas> rotPreint(const SortIndexTracker2<double> &t,
-                                    const std::vector<bool> &interest_t) {
+                                    const std::vector<bool> &interest_t) const {
     std::vector<PreintMeas> output(t.size());
 
     MatX inter_w(3, t.size());
@@ -360,7 +360,7 @@ private:
   }
 
   template <typename T>
-  T minCovDiag(const T &cov, const double min_val = 1e-6) {
+  T minCovDiag(const T &cov, const double min_val = 1e-6) const {
     T output = cov;
     for (int i = 0; i < cov.rows(); ++i) {
       if (output(i, i) < min_val) {
@@ -373,7 +373,7 @@ private:
   void rotIterativeIntegration(const Eigen::MatrixXd &w,
                                const Eigen::MatrixXd &var,
                                const SortIndexTracker2<double> &t,
-                               std::vector<PreintMeas> &output) {
+                               std::vector<PreintMeas> &output) const {
 
     Mat3 rot_mat = Mat3::Identity();
     Mat9 cov = Mat9::Zero();
@@ -446,7 +446,7 @@ private:
   void rotIterativeIntegration(
       const Eigen::MatrixXd &w, const SortIndexTracker2<double> &t,
       std::vector<Eigen::Matrix3d, Eigen::aligned_allocator<Eigen::Matrix3d>>
-          &output) {
+          &output) const {
     Mat3 rot_mat = Mat3::Identity();
     Mat9 cov = Mat9::Zero();
 
@@ -1206,7 +1206,7 @@ private:
     std::vector<std::vector<double>> t;
     t.push_back(t_vect);
     t.push_back(t_vect_dt);
-    t.push_back(std::vector<double>(1, start_t_));
+    t.push_back(std::vector<double>{ start_t_ });
     ImuPreintegration preint(imu_data, t_vect[0], t, preint_opt, bias_prior);
 
     state_d_r_.resize(nb_state_, 3);
@@ -1288,7 +1288,7 @@ private:
       std::vector<std::vector<double>> t;
       t.push_back(t_vect);
       t.push_back(t_vect_dt);
-      t.push_back(std::vector<double>(1, start_t_));
+      t.push_back(std::vector<double>{ start_t_ });
       PreintPrior bias_prior;
       ImuPreintegration preint(temp_imu_data, t_vect[0], t, preint_opt,
                                bias_prior);
