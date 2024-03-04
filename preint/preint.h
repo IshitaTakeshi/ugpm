@@ -44,10 +44,10 @@ void rotIterativeIntegration(const Eigen::MatrixXd &w,
 
   for (int i = 0; i < (t.size() - 1); ++i) {
     // Prepare some variables for convenience sake
-    double dt = t.get(i + 1) - t.get(i);
-    Vec3 gyr_dt = w.col(i) * dt;
+    const double dt = t.get(i + 1) - t.get(i);
+    const Vec3 gyr_dt = w.col(i) * dt;
 
-    double gyr_norm = gyr_dt.norm();
+    const double gyr_norm = gyr_dt.norm();
 
     Mat3 e_R = Mat3::Identity();
     Mat3 j_r = Mat3::Identity();
@@ -131,6 +131,78 @@ void rotIterativeIntegration(
       output[start_index_] = rot_mat;
     }
   }
+}
+
+std::vector<PreintMeas> rotPreint(const SortIndexTracker2<double> &t,
+                                  const std::vector<bool> &interest_t,
+                                  const Eigen::MatrixXd & gyr_data_,
+                                  const Eigen::VectorXd & gyr_time_,
+                                  const double gyr_var_,
+                                  const bool bare_,
+                                  const int start_index_,
+                                  const double start_t_) {
+  std::vector<PreintMeas> output(t.size());
+
+  MatX inter_w(3, t.size());
+  MatX inter_var(3, t.size());
+  MatX inter_w_shifted;
+  VecX gyr_time_shifted;
+  if (!bare_) {
+    inter_w_shifted.resize(3, t.size());
+    gyr_time_shifted = (gyr_time_.array() - kNumDtJacobianDelta).matrix();
+  }
+
+  for (int i = 0; i < 3; ++i) {
+    auto [val, var] = linearInterpolation(gyr_data_.row(i).transpose(),
+                                          gyr_time_, gyr_var_, t);
+    inter_w.row(i) = val.transpose();
+    inter_var.row(i) = var.transpose();
+    if (!bare_) {
+      VecX val_shifted = linearInterpolation(gyr_data_.row(i).transpose(),
+                                             gyr_time_shifted, t);
+      inter_w_shifted.row(i) = val_shifted.transpose();
+    }
+  }
+
+  if (!bare_) {
+    rotIterativeIntegration(inter_w, inter_var, t, start_t_, start_index_, output);
+
+    // Compute the numerical Jacobians for post integration
+    std::vector<Mat3, Eigen::aligned_allocator<Mat3>> d_R_dt(output.size());
+    std::vector<std::vector<Mat3, Eigen::aligned_allocator<Mat3>>> d_R_d_bw(
+        3, std::vector<Mat3, Eigen::aligned_allocator<Mat3>>(output.size()));
+
+    rotIterativeIntegration(inter_w_shifted, t, start_index_, d_R_dt);
+    for (int j = 0; j < t.size(); ++j) {
+      if (interest_t[j]) {
+        output[j].d_delta_R_d_t =
+            logMap(output[j].delta_R.transpose() * (d_R_dt[j])) /
+            kNumDtJacobianDelta;
+      }
+    }
+
+    for (int i = 0; i < 3; ++i) {
+      MatX temp_data = inter_w;
+      Vec3 offset = Vec3::Zero();
+      offset(i) = kNumGyrBiasJacobianDelta;
+      temp_data.colwise() += offset;
+      rotIterativeIntegration(temp_data, t, start_index_, d_R_d_bw[i]);
+      for (int j = 0; j < t.size(); ++j) {
+        if (interest_t[j]) {
+          output[j].d_delta_R_d_bw.col(i) =
+              logMap(output[j].delta_R.transpose() * (d_R_d_bw[i][j])) /
+              kNumGyrBiasJacobianDelta;
+        }
+      }
+    }
+  } else {
+    std::vector<Mat3, Eigen::aligned_allocator<Mat3>> temp_R(t.size());
+    rotIterativeIntegration(inter_w, t, start_index_, temp_R);
+    for (int i = 0; i < t.size(); ++i) {
+      output[i].delta_R = temp_R[i];
+    }
+  }
+  return output;
 }
 
 enum QueryType { kVecVec, kVec, kSingle };
@@ -353,7 +425,8 @@ public:
     }
 
     // Compute the rotational part of the preintegration
-    const std::vector<PreintMeas> preint = rotPreint(t, interest_t);
+    const std::vector<PreintMeas> preint = rotPreint(
+        t, interest_t, gyr_data_, gyr_time_, gyr_var_, bare_, start_index_, start_t_);
 
     // Demux the preintegrated mesurements
     for (int i = 0; i < nb_infer_vec; ++i) {
@@ -410,72 +483,6 @@ private:
   Eigen::MatrixXd acc_data_;
   Eigen::VectorXd gyr_time_;
   Eigen::VectorXd acc_time_;
-
-  std::vector<PreintMeas> rotPreint(const SortIndexTracker2<double> &t,
-                                    const std::vector<bool> &interest_t) const {
-    std::vector<PreintMeas> output(t.size());
-
-    MatX inter_w(3, t.size());
-    MatX inter_var(3, t.size());
-    MatX inter_w_shifted;
-    VecX gyr_time_shifted;
-    if (!bare_) {
-      inter_w_shifted.resize(3, t.size());
-      gyr_time_shifted = (gyr_time_.array() - kNumDtJacobianDelta).matrix();
-    }
-
-    for (int i = 0; i < 3; ++i) {
-      auto [val, var] = linearInterpolation(gyr_data_.row(i).transpose(),
-                                            gyr_time_, gyr_var_, t);
-      inter_w.row(i) = val.transpose();
-      inter_var.row(i) = var.transpose();
-      if (!bare_) {
-        VecX val_shifted = linearInterpolation(gyr_data_.row(i).transpose(),
-                                               gyr_time_shifted, t);
-        inter_w_shifted.row(i) = val_shifted.transpose();
-      }
-    }
-
-    if (!bare_) {
-      rotIterativeIntegration(inter_w, inter_var, t, start_t_, start_index_, output);
-
-      // Compute the numerical Jacobians for post integration
-      std::vector<Mat3, Eigen::aligned_allocator<Mat3>> d_R_dt(output.size());
-      std::vector<std::vector<Mat3, Eigen::aligned_allocator<Mat3>>> d_R_d_bw(
-          3, std::vector<Mat3, Eigen::aligned_allocator<Mat3>>(output.size()));
-
-      rotIterativeIntegration(inter_w_shifted, t, start_index_, d_R_dt);
-      for (int j = 0; j < t.size(); ++j) {
-        if (interest_t[j]) {
-          output[j].d_delta_R_d_t =
-              logMap(output[j].delta_R.transpose() * (d_R_dt[j])) /
-              kNumDtJacobianDelta;
-        }
-      }
-
-      for (int i = 0; i < 3; ++i) {
-        MatX temp_data = inter_w;
-        Vec3 offset = Vec3::Zero();
-        offset(i) = kNumGyrBiasJacobianDelta;
-        temp_data.colwise() += offset;
-        rotIterativeIntegration(temp_data, t, start_index_, d_R_d_bw[i]);
-        for (int j = 0; j < t.size(); ++j) {
-          if (interest_t[j]) {
-            output[j].d_delta_R_d_bw.col(i) =
-                logMap(output[j].delta_R.transpose() * (d_R_d_bw[i][j])) /
-                kNumGyrBiasJacobianDelta;
-          }
-        }
-      }
-    } else {
-      std::vector<Mat3, Eigen::aligned_allocator<Mat3>> temp_R(t.size());
-      rotIterativeIntegration(inter_w, t, start_index_, temp_R);
-      for (int i = 0; i < t.size(); ++i) {
-        output[i].delta_R = temp_R[i];
-      }
-    }
-    return output;
-  }
 
   // Compute the preintegration for the velocity and position part
   void velPosPreintLPM(std::vector<std::vector<double>> &t,
