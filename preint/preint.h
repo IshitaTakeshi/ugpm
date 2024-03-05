@@ -13,10 +13,10 @@
 
 namespace ugpm {
 
-using RowMajorMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+using RowMajorMatrix =
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
-template <typename T>
-T minCovDiag(const T &cov, const double min_val = 1e-6) {
+template <typename T> T minCovDiag(const T &cov, const double min_val = 1e-6) {
   T output = cov;
   for (int i = 0; i < cov.rows(); ++i) {
     if (output(i, i) < min_val) {
@@ -29,8 +29,7 @@ T minCovDiag(const T &cov, const double min_val = 1e-6) {
 void rotIterativeIntegration(const Eigen::MatrixXd &w,
                              const Eigen::MatrixXd &var,
                              const SortIndexTracker2<double> &t,
-                             const double start_t_,
-                             const int start_index_,
+                             const double start_t_, const int start_index_,
                              std::vector<PreintMeas> &output) {
 
   Mat3 rot_mat = Mat3::Identity();
@@ -68,9 +67,9 @@ void rotIterativeIntegration(const Eigen::MatrixXd &w,
       e_R = e_R + ((s_gyr_norm / gyr_norm) * gyr_skew_mat) +
             (scalar_2 * skew_mat_sq);
 
-      j_r = j_r - (scalar_2 * gyr_skew_mat) +
-            (((gyr_norm - s_gyr_norm) / (gyr_norm_sq * gyr_norm)) *
-             skew_mat_sq);
+      j_r =
+          j_r - (scalar_2 * gyr_skew_mat) +
+          (((gyr_norm - s_gyr_norm) / (gyr_norm_sq * gyr_norm)) * skew_mat_sq);
     }
 
     if ((i + 1) > start_index_) {
@@ -78,8 +77,7 @@ void rotIterativeIntegration(const Eigen::MatrixXd &w,
       Mat3 A = e_R.transpose();
       Mat3 B = (j_r * dt);
       Mat3 imu_cov;
-      imu_cov << var(0, i), 0.0, 0.0, 0.0, var(1, i), 0.0, 0.0, 0.0,
-          var(2, i);
+      imu_cov << var(0, i), 0.0, 0.0, 0.0, var(1, i), 0.0, 0.0, 0.0, var(2, i);
       cov.block<3, 3>(0, 0) = A * cov.block<3, 3>(0, 0) * A.transpose() +
                               B * imu_cov * B.transpose();
     }
@@ -132,14 +130,11 @@ void rotIterativeIntegration(
   }
 }
 
-std::vector<PreintMeas> rotPreint(const SortIndexTracker2<double> &t,
-                                  const std::vector<bool> &interest_t,
-                                  const Eigen::MatrixXd & gyr_data_,
-                                  const Eigen::VectorXd & gyr_time_,
-                                  const double gyr_var_,
-                                  const bool bare_,
-                                  const int start_index_,
-                                  const double start_t_) {
+std::vector<PreintMeas>
+rotPreint(const SortIndexTracker2<double> &t,
+          const std::vector<bool> &interest_t, const Eigen::MatrixXd &gyr_data_,
+          const Eigen::VectorXd &gyr_time_, const double gyr_var_,
+          const bool bare_, const int start_index_, const double start_t_) {
   std::vector<PreintMeas> output(t.size());
 
   MatX inter_w(3, t.size());
@@ -164,7 +159,8 @@ std::vector<PreintMeas> rotPreint(const SortIndexTracker2<double> &t,
   }
 
   if (!bare_) {
-    rotIterativeIntegration(inter_w, inter_var, t, start_t_, start_index_, output);
+    rotIterativeIntegration(inter_w, inter_var, t, start_t_, start_index_,
+                            output);
 
     // Compute the numerical Jacobians for post integration
     std::vector<Mat3, Eigen::aligned_allocator<Mat3>> d_R_dt(output.size());
@@ -204,13 +200,10 @@ std::vector<PreintMeas> rotPreint(const SortIndexTracker2<double> &t,
   return output;
 }
 
-void velPosPreintLPMPartial(
-    const SortIndexTracker2<double> &time,
-    const MatX & acc_data,
-    const VecX & acc_time,
-    const double start_t_,
-    const int nb_acc_,
-    std::vector<std::vector<PreintMeas>> &preint) {
+void velPosPreintLPMPartial(const SortIndexTracker2<double> &time,
+                            const MatX &acc_data, const VecX &acc_time,
+                            const double start_t_, const int nb_acc_,
+                            std::vector<std::vector<PreintMeas>> &preint) {
   int data_ptr = 0;
 
   // For each of the query points of the timeline
@@ -301,19 +294,19 @@ public:
   // Constructor given IMU data and inference timestamps
   ImuPreintegration(const ImuData &imu_data, const double start_t,
                     const std::vector<std::vector<double>> &infer_t,
-                    const PreintOption & opt, const PreintPrior & prior,
+                    const PreintOption &opt, const PreintPrior &prior,
                     const bool rot_only = false, const int overlap = kOverlap);
 
   // Constructor overloading given only a vector of timestamps
   ImuPreintegration(const ImuData &imu_data, const double start_t,
-                    const std::vector<double> &infer_t, const PreintOption & opt,
-                    const PreintPrior & prior, const bool rot_only = false,
+                    const std::vector<double> &infer_t, const PreintOption &opt,
+                    const PreintPrior &prior, const bool rot_only = false,
                     const int overlap = kOverlap);
 
   // Constructor overloading given only a one timestamp
   ImuPreintegration(const ImuData &imu_data, const double start_t,
-                    const double infer_t, const PreintOption & opt,
-                    const PreintPrior & prior, const bool rot_only = false,
+                    const double infer_t, const PreintOption &opt,
+                    const PreintPrior &prior, const bool rot_only = false,
                     const int overlap = kOverlap);
 
   // Get the preintegrated measurement as per indexed in the given inference
@@ -509,8 +502,9 @@ public:
     }
 
     // Compute the rotational part of the preintegration
-    const std::vector<PreintMeas> preint = rotPreint(
-        t, interest_t, gyr_data_, gyr_time_, gyr_var_, bare_, start_index_, start_t_);
+    const std::vector<PreintMeas> preint =
+        rotPreint(t, interest_t, gyr_data_, gyr_time_, gyr_var_, bare_,
+                  start_index_, start_t_);
 
     // Demux the preintegrated mesurements
     for (size_t i = 0; i < nb_infer_vec; ++i) {
@@ -542,7 +536,8 @@ public:
         infer_t.pop_back();
       }
       const SortIndexTracker2<double> temp_t(infer_t);
-      velPosPreintLPMPartial(temp_t, acc_data_, acc_time_, start_t_, nb_acc_, preint_);
+      velPosPreintLPMPartial(temp_t, acc_data_, acc_time_, start_t_, nb_acc_,
+                             preint_);
     }
   }
 
@@ -578,10 +573,8 @@ private:
     MatX acc_data = acc_data_;
     VecX acc_time = acc_time_;
     for (int i = 0; i < nb_acc_; ++i) {
-      const Vec3 temp_d_acc_d_dt(
-          d_acc_d_dt[0].coeff(i),
-          d_acc_d_dt[1].coeff(i),
-          d_acc_d_dt[2].coeff(i));
+      const Vec3 temp_d_acc_d_dt(d_acc_d_dt[0].coeff(i), d_acc_d_dt[1].coeff(i),
+                                 d_acc_d_dt[2].coeff(i));
       acc_data.col(i) += kNumDtJacobianDelta * temp_d_acc_d_dt;
       acc_time[i] -= kNumDtJacobianDelta;
     }
@@ -689,10 +682,10 @@ private:
         const double time_temp = time.get(i);
         const double temp_d_1 = alpha * time_temp + beta;
         const double temp_d_v =
-                  d_v_backup + ((time_temp - t_0) * (d_0 + temp_d_1) / 2.0);
+            d_v_backup + ((time_temp - t_0) * (d_0 + temp_d_1) / 2.0);
         const double temp_d_p = d_p_backup + d_v_backup * (time_temp - t_0) +
-                          ((t_0 - time_temp) * (t_0 - time_temp) *
-                           (2.0 * d_0 + temp_d_1) / 6.0);
+                                ((t_0 - time_temp) * (t_0 - time_temp) *
+                                 (2.0 * d_0 + temp_d_1) / 6.0);
         const double temp_d_v_var = (time_temp - start_t_) * acc_var_;
         const double temp_d_p_var = (time_temp - start_t_) * temp_d_v_var;
         const std::pair<double, double> index = time.getIndexPair(i);
@@ -770,7 +763,8 @@ public:
       t_vect_dt[i] = state_time_(i) + kNumDtJacobianDelta;
     }
 
-    auto temp_imu_data = imu_data.get(state_time_(0), state_time_(state_time_.size() - 1));
+    auto temp_imu_data =
+        imu_data.get(state_time_(0), state_time_(state_time_.size() - 1));
 
     // Fill the private structures and other variables
     nb_gyr_ = temp_imu_data.gyr.size();
@@ -793,7 +787,8 @@ public:
     }
 
     // Get prior about the preintegrated measurements from LPM preintegration
-    const std::vector<double> t_vect(state_time_.data(), state_time_.data() + state_time_.size());
+    const std::vector<double> t_vect(state_time_.data(),
+                                     state_time_.data() + state_time_.size());
     initialiseStateWithLPM(temp_imu_data, t_vect, t_vect_dt, bias_prior);
 
     initialiseStateDiff(temp_imu_data, t_vect, t_vect_dt);
@@ -941,10 +936,10 @@ public:
     ceres::Solver::Summary summary;
     ceres::Solve(solver_opt, &optimisation, &summary);
 
-    optimisation.AddResidualBlock(
-        acc_cost_fun, nullptr, &(state_d_r_(0, 0)), &(state_d_r_(0, 1)),
-        &(state_d_r_(0, 2)), &(state_acc_(0, 0)), &(state_acc_(0, 1)),
-        &(state_acc_(0, 2)));
+    optimisation.AddResidualBlock(acc_cost_fun, nullptr, &(state_d_r_(0, 0)),
+                                  &(state_d_r_(0, 1)), &(state_d_r_(0, 2)),
+                                  &(state_acc_(0, 0)), &(state_acc_(0, 1)),
+                                  &(state_acc_(0, 2)));
 
     for (int i = 3; i < 6; ++i) {
       GpNormCostFunction *cost_fun =
@@ -960,7 +955,8 @@ public:
     solver_opt.function_tolerance = 1e-10;
     ceres::Solve(solver_opt, &optimisation, &summary);
 
-    finishStateDiff(d_r_dt_local_shift_, delta_r_time_, delta_r_bw_, d_r_bw_local_shift_, d_state_bw_, d_d_r_dt_);
+    finishStateDiff(d_r_dt_local_shift_, delta_r_time_, delta_r_bw_,
+                    d_r_bw_local_shift_, d_state_bw_, d_d_r_dt_);
 
     // Prepare object for later inference
     alpha_.resize(6, VecX(nb_state_));
@@ -998,7 +994,8 @@ public:
     temp_t[0] = start_t_ + kNumDtJacobianDelta;
     for (int i = 0; i < 3; ++i) {
       start_r_dt[i] = (seKernelIntegral(start_t_, temp_t, state_time_,
-                                        hyper_[i].l2, hyper_[i].sf2) * alpha_[i])(0, 0) +
+                                        hyper_[i].l2, hyper_[i].sf2) *
+                       alpha_[i])(0, 0) +
                       kNumDtJacobianDelta * hyper_[i].mean;
     }
     Mat3 delta_R_dt_start = expMap(start_r_dt);
@@ -1202,7 +1199,8 @@ private:
   std::vector<MatX> K_inv_;
   std::vector<MatX> K_int_K_inv_;
 
-  void initialiseStateWithLPM(const ImuData &imu_data, const std::vector<double> &t_vect,
+  void initialiseStateWithLPM(const ImuData &imu_data,
+                              const std::vector<double> &t_vect,
                               const std::vector<double> &t_vect_dt,
                               PreintPrior bias_prior = PreintPrior()) {
     PreintOption preint_opt;
@@ -1211,7 +1209,7 @@ private:
     std::vector<std::vector<double>> t;
     t.push_back(t_vect);
     t.push_back(t_vect_dt);
-    t.push_back(std::vector<double>{ start_t_ });
+    t.push_back(std::vector<double>{start_t_});
     ImuPreintegration preint(imu_data, t_vect[0], t, preint_opt, bias_prior);
 
     state_d_r_.resize(nb_state_, 3);
@@ -1235,9 +1233,10 @@ private:
       }
       state_d_r_.row(i) =
           ((prev[1] - prev[0]) / kNumDtJacobianDelta).transpose();
-      const Vec3 temp_acc = start_R.transpose() *
-                      ((preint.get(1, i).delta_v - preint.get(0, i).delta_v) /
-                       kNumDtJacobianDelta);
+      const Vec3 temp_acc =
+          start_R.transpose() *
+          ((preint.get(1, i).delta_v - preint.get(0, i).delta_v) /
+           kNumDtJacobianDelta);
       state_acc_.row(i) = temp_acc.transpose();
 
       d_r_dt_local_.col(i) =
@@ -1263,9 +1262,10 @@ private:
       }
       state_d_r_.row(i) =
           ((prev[1] - prev[0]) / kNumDtJacobianDelta).transpose();
-      const Vec3 temp_acc = start_R.transpose() *
-                      ((preint.get(1, i).delta_v - preint.get(0, i).delta_v) /
-                       kNumDtJacobianDelta);
+      const Vec3 temp_acc =
+          start_R.transpose() *
+          ((preint.get(1, i).delta_v - preint.get(0, i).delta_v) /
+           kNumDtJacobianDelta);
       state_acc_.row(i) = temp_acc.transpose();
 
       d_r_dt_local_.col(i) =
@@ -1273,7 +1273,8 @@ private:
       state_r_temp_.col(i) = prev[0];
     }
   }
-  void initialiseStateDiff(const ImuData &imu_data, const std::vector<double> &t_vect,
+  void initialiseStateDiff(const ImuData &imu_data,
+                           const std::vector<double> &t_vect,
                            const std::vector<double> &t_vect_dt) {
 
     // Prepare for the timeshift diff
@@ -1293,7 +1294,7 @@ private:
       std::vector<std::vector<double>> t;
       t.push_back(t_vect);
       t.push_back(t_vect_dt);
-      t.push_back(std::vector<double>{ start_t_ });
+      t.push_back(std::vector<double>{start_t_});
       PreintPrior bias_prior;
       ImuPreintegration preint(temp_imu_data, t_vect[0], t, preint_opt,
                                bias_prior);
@@ -1416,13 +1417,11 @@ private:
     state_r_temp_.resize(0, 0);
   }
 
-  void finishStateDiff(
-      const MatX & d_r_dt_local_shift,
-      const MatX & delta_r_time,
-      const std::vector<MatX> & delta_r_bw,
-      const std::vector<MatX> & d_r_bw_local_shift,
-      std::vector<MatX> & d_state_bw,
-      std::vector<VecX> & d_d_r_dt) const {
+  void finishStateDiff(const MatX &d_r_dt_local_shift, const MatX &delta_r_time,
+                       const std::vector<MatX> &delta_r_bw,
+                       const std::vector<MatX> &d_r_bw_local_shift,
+                       std::vector<MatX> &d_state_bw,
+                       std::vector<VecX> &d_d_r_dt) const {
     MatX state_r(nb_state_, 3);
     VecX dt_state = (state_time_.array() - start_t_).matrix();
 
@@ -1440,10 +1439,12 @@ private:
                  d_r_dt_local_.col(i);
 
       // For the timeshift
-      const Vec3 temp_r = state_r.row(i).transpose() +
-                    inverseJacobianRighthandSO3(state_r.row(i).transpose()) *
-                        delta_r_time.col(i);
-      const Vec3 d_r_dt = inverseJacobianRighthandSO3(temp_r) * d_r_dt_local_shift.col(i);
+      const Vec3 temp_r =
+          state_r.row(i).transpose() +
+          inverseJacobianRighthandSO3(state_r.row(i).transpose()) *
+              delta_r_time.col(i);
+      const Vec3 d_r_dt =
+          inverseJacobianRighthandSO3(temp_r) * d_r_dt_local_shift.col(i);
       Vec3 temp_d_d_r_d_t = (d_r_dt - d_r) / kNumDtJacobianDelta;
       d_d_r_dt[0][i] = temp_d_d_r_d_t[0];
       d_d_r_dt[1][i] = temp_d_d_r_d_t[1];
@@ -1453,8 +1454,10 @@ private:
       for (int axis = 0; axis < 3; ++axis) {
         const Vec3 temp_r_w =
             state_r.row(i).transpose() +
-            inverseJacobianRighthandSO3(state_r.row(i).transpose()) * delta_r_bw[axis].col(i);
-        const Vec3 d_r_dt = inverseJacobianRighthandSO3(temp_r_w) * d_r_bw_local_shift[axis].col(i);
+            inverseJacobianRighthandSO3(state_r.row(i).transpose()) *
+                delta_r_bw[axis].col(i);
+        const Vec3 d_r_dt = inverseJacobianRighthandSO3(temp_r_w) *
+                            d_r_bw_local_shift[axis].col(i);
         const Vec3 temp_d_d_r_d_t = (d_r_dt - d_r) / kNumGyrBiasJacobianDelta;
         d_state_bw[0](i, axis) = temp_d_d_r_d_t(0);
         d_state_bw[1](i, axis) = temp_d_d_r_d_t(1);
@@ -1518,8 +1521,8 @@ private:
 // Constructor given IMU data and inference timestamps
 ImuPreintegration::ImuPreintegration(
     const ImuData &imu_data, const double start_t,
-    const std::vector<std::vector<double>> &infer_t, const PreintOption & opt,
-    const PreintPrior & prior, const bool rot_only, const int overlap)
+    const std::vector<std::vector<double>> &infer_t, const PreintOption &opt,
+    const PreintPrior &prior, const bool rot_only, const int overlap)
     : imu_data_(imu_data) {
   if (!imu_data_.checkFrequency()) {
     std::cout
@@ -1668,8 +1671,8 @@ ImuPreintegration::ImuPreintegration(
 ImuPreintegration::ImuPreintegration(const ImuData &imu_data,
                                      const double start_t,
                                      const std::vector<double> &infer_t,
-                                     const PreintOption & opt,
-                                     const PreintPrior & prior,
+                                     const PreintOption &opt,
+                                     const PreintPrior &prior,
                                      const bool rot_only, const int overlap)
     : ImuPreintegration(imu_data, start_t,
                         std::vector<std::vector<double>>(1, infer_t), opt,
@@ -1682,8 +1685,8 @@ ImuPreintegration::ImuPreintegration(const ImuData &imu_data,
 // Constructor overloading given only a one timestamp
 ImuPreintegration::ImuPreintegration(const ImuData &imu_data,
                                      const double start_t, const double infer_t,
-                                     const PreintOption & opt,
-                                     const PreintPrior & prior,
+                                     const PreintOption &opt,
+                                     const PreintPrior &prior,
                                      const bool rot_only, const int overlap)
     : ImuPreintegration(
           imu_data, start_t,
