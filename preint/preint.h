@@ -664,7 +664,7 @@ private:
       const SortIndexTracker2<double> &time,
       const MatX & acc_data,
       const VecX & acc_time,
-      std::vector<std::vector<PreintMeas>> &preint) {
+      std::vector<std::vector<PreintMeas>> &preint) const {
     int data_ptr = 0;
 
     // For each of the query points of the timeline
