@@ -542,7 +542,7 @@ public:
       while (infer_t.size() != nb_infer_vec) {
         infer_t.pop_back();
       }
-      SortIndexTracker2<double> temp_t(infer_t);
+      const SortIndexTracker2<double> temp_t(infer_t);
       velPosPreintLPMPartial(temp_t, acc_data_, acc_time_, start_t_, nb_acc_, preint_);
     }
   }
@@ -575,23 +575,20 @@ private:
                        const std::vector<MatX> &d_acc_d_bw,
                        const std::vector<VecX> &d_acc_d_dt,
                        std::vector<std::vector<PreintMeas>> &preint) {
-    SortIndexTracker2<double> time(t);
-
     // Compute with the time shift (could be optimised somehow I guess)
-    MatX save_acc_data = acc_data_;
-    VecX save_acc_time = acc_time_;
+    MatX acc_data = acc_data_;
+    VecX acc_time = acc_time_;
     for (int i = 0; i < nb_acc_; ++i) {
       const Vec3 temp_d_acc_d_dt(
           d_acc_d_dt[0].coeff(i),
           d_acc_d_dt[1].coeff(i),
           d_acc_d_dt[2].coeff(i));
-      acc_data_.col(i) += kNumDtJacobianDelta * temp_d_acc_d_dt;
-      acc_time_[i] -= kNumDtJacobianDelta;
+      acc_data.col(i) += kNumDtJacobianDelta * temp_d_acc_d_dt;
+      acc_time[i] -= kNumDtJacobianDelta;
     }
-    velPosPreintLPMPartial(time, acc_data_, acc_time_, start_t_, nb_acc_, preint);
 
-    acc_data_ = save_acc_data;
-    acc_time_ = save_acc_time;
+    const SortIndexTracker2<double> time(t);
+    velPosPreintLPMPartial(time, acc_data, acc_time, start_t_, nb_acc_, preint);
 
     int data_ptr = 0;
 
