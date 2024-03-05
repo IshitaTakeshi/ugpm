@@ -84,7 +84,7 @@ struct ImuData {
     // Get min and max delta t for both the acc and gyr data
     double min_acc_dt = 1e10;
     double max_acc_dt = -1e10;
-    for (int i = 0; i < acc.size() - 1; ++i) {
+    for (size_t i = 0; i < acc.size() - 1; ++i) {
       double dt = acc[i + 1].t - acc[i].t;
       if (dt < min_acc_dt)
         min_acc_dt = dt;
@@ -93,7 +93,7 @@ struct ImuData {
     }
     double min_gyr_dt = 1e10;
     double max_gyr_dt = -1e10;
-    for (int i = 0; i < gyr.size() - 1; ++i) {
+    for (size_t i = 0; i < gyr.size() - 1; ++i) {
       double dt = gyr[i + 1].t - gyr[i].t;
       if (dt < min_gyr_dt)
         min_gyr_dt = dt;
@@ -175,7 +175,7 @@ private:
 
     // TODO: could be optimised (keeping an internal pointer for repetitive
     // calls instead for looping through all the data)
-    int i = 0;
+    size_t i = 0;
     bool loop = true;
     while (loop) {
       if (samples[i].t > from) {
@@ -333,17 +333,17 @@ public:
   SortIndexTracker2(const std::vector<std::vector<T>> &data) : data_(&data) {
     std::vector<T> temp_data;
     std::vector<std::pair<int, int>> temp_map;
-    for (int i = 0; i < data_->size(); ++i) {
+    for (size_t i = 0; i < data_->size(); ++i) {
       temp_data.insert(temp_data.end(), data_->at(i).begin(),
                        data_->at(i).end());
-      for (int j = 0; j < data_->at(i).size(); ++j) {
+      for (size_t j = 0; j < data_->at(i).size(); ++j) {
         temp_map.push_back(std::make_pair(i, j));
       }
     }
 
     std::vector<int> sorted_indexes = sortIndexes(temp_data);
 
-    for (int i = 0; i < sorted_indexes.size(); ++i) {
+    for (size_t i = 0; i < sorted_indexes.size(); ++i) {
       index_map_.push_back(temp_map[sorted_indexes[i]]);
     }
   }
@@ -356,7 +356,7 @@ public:
 
   std::vector<int> getIndexVector(const int vec_i) const {
     std::vector<int> output;
-    for (int i = 0; i < index_map_.size(); ++i) {
+    for (size_t i = 0; i < index_map_.size(); ++i) {
       if (index_map_[i].first == vec_i)
         output.push_back(i);
     }
@@ -366,7 +366,7 @@ public:
   template <class U>
   std::vector<U> getVector(const std::vector<U> &data, const int vec_i) const {
     std::vector<U> output;
-    for (int i = 0; i < index_map_.size(); ++i) {
+    for (size_t i = 0; i < index_map_.size(); ++i) {
       if (index_map_[i].first == vec_i)
         output.push_back(data[i]);
     }
@@ -375,7 +375,7 @@ public:
 
   // Get the 1D index corresponding to the 2D indices
   int getIndex(const int i, const int j) const {
-    for (int k = 0; k < index_map_.size(); ++k) {
+    for (size_t k = 0; k < index_map_.size(); ++k) {
       if ((index_map_[k].first == i) && (index_map_[k].second == j)) {
         return k;
       }
@@ -386,7 +386,7 @@ public:
   // Get from the 2D indices in a 1D structure
   template <class U>
   U get(const int i, const int j, const std::vector<U> &data) const {
-    for (int k = 0; k < index_map_.size(); ++k) {
+    for (size_t k = 0; k < index_map_.size(); ++k) {
       if ((index_map_[k].first == i) && (index_map_[k].second == j)) {
         return data[k];
       }
@@ -399,7 +399,7 @@ public:
   template <class U>
   std::vector<U> applySort(const std::vector<std::vector<U>> &data) const {
     std::vector<U> output;
-    for (int k = 0; k < index_map_.size(); ++k) {
+    for (size_t k = 0; k < index_map_.size(); ++k) {
       output.push_back(data[index_map_[k].first][index_map_[k].second]);
     }
     return output;

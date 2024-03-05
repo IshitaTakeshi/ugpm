@@ -4,7 +4,7 @@
  *  Copyright 2021 Cedric LE GENTIL
  *
  *  This is a simple example of how to generate the UGPMs
- *  
+ *
  *  Disclaimer:
  *  This code is not optimised neither for performance neither for maintainability.
  *  There might still be errors in the code, logic or procedure. Every feedback is welcomed.
@@ -42,7 +42,7 @@ int main(int argc, char* argv[]){
 
     boost::program_options::variables_map var_map;
     boost::program_options::store(boost::program_options::parse_command_line(argc, argv, opt_description), var_map);
-    boost::program_options::notify(var_map);    
+    boost::program_options::notify(var_map);
 
     if(var_map.count("help")) {
         std::cout << opt_description << std::endl;
@@ -61,11 +61,11 @@ int main(int argc, char* argv[]){
     case ugpm::LPM:
         to_print = "LPM";
         break;
-    
+
     case ugpm::UGPM:
         to_print = "UGPM";
         break;
-    
+
     default:
         break;
     }
@@ -114,7 +114,7 @@ int main(int argc, char* argv[]){
         std::cout << "-- Test removing some measurements (asynchronous sensors) --" << std::endl;
         ugpm::ImuData temp_data = data;
         temp_data.gyr.clear();
-        for(int i = 0; i < data.gyr.size(); i+=2)
+        for(size_t i = 0; i < data.gyr.size(); i+=2)
         {
             temp_data.gyr.push_back(data.gyr[i]);
         }
@@ -145,13 +145,13 @@ int main(int argc, char* argv[]){
         ugpm::ImuData temp_data = data;
         ugpm::PreintPrior temp_prior = prior;
         temp_prior.acc_bias = {0.1, -0.15, 0.03};
-        for(int i = 0; i < temp_data.acc.size(); ++i)
+        for(size_t i = 0; i < temp_data.acc.size(); ++i)
         {
             temp_data.acc[i].data[0] += temp_prior.acc_bias[0];
             temp_data.acc[i].data[1] += temp_prior.acc_bias[1];
             temp_data.acc[i].data[2] += temp_prior.acc_bias[2];
         }
-        
+
         ugpm::StopWatch stop_watch;
         stop_watch.start();
         ugpm::ImuPreintegration preint(temp_data, start_t, t, preint_opt, prior);
@@ -168,7 +168,7 @@ int main(int argc, char* argv[]){
         std::cout << "  Velocity [m/s] = " << error[1] << std::endl;
         std::cout << "  Position [m]   = " << error[2] << std::endl;
         std::cout << std::endl;
-        
+
 
         stop_watch.start();
         ugpm::ImuPreintegration preint2(temp_data, start_t, t, preint_opt, temp_prior);

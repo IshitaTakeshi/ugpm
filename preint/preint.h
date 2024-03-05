@@ -107,7 +107,6 @@ void rotIterativeIntegration(
     std::vector<Eigen::Matrix3d, Eigen::aligned_allocator<Eigen::Matrix3d>>
         &output) {
   Mat3 rot_mat = Mat3::Identity();
-  Mat9 cov = Mat9::Zero();
 
   output[0] = rot_mat;
 
@@ -437,7 +436,7 @@ public:
     start_t_ = start_time;
     bare_ = bare;
 
-    int nb_infer_vec = time.size();
+    const size_t nb_infer_vec = time.size();
 
     // Fill the private structures and other variables
     nb_gyr_ = imu_data.gyr.size();
@@ -499,7 +498,7 @@ public:
     std::vector<bool> interest_t;
     {
       std::vector<std::vector<bool>> temp;
-      for (int i = 0; i < nb_infer_vec; ++i)
+      for (size_t i = 0; i < nb_infer_vec; ++i)
         temp.push_back(std::vector<bool>(infer_t[i].size(), true));
       temp.push_back(std::vector<bool>(infer_t[nb_infer_vec].size(), true));
       temp.push_back(std::vector<bool>(infer_t[nb_infer_vec + 1].size(), true));
@@ -514,7 +513,7 @@ public:
         t, interest_t, gyr_data_, gyr_time_, gyr_var_, bare_, start_index_, start_t_);
 
     // Demux the preintegrated mesurements
-    for (int i = 0; i < nb_infer_vec; ++i) {
+    for (size_t i = 0; i < nb_infer_vec; ++i) {
       preint_.push_back(t.getVector(preint, i));
     }
 
@@ -606,9 +605,6 @@ private:
         throw "FullLPM: the start_time is not in the data domain";
       }
     }
-
-    double data_ptr_save = data_ptr;
-    double start_index_save = start_index;
 
     for (int axis = 0; axis < 3; ++axis) {
       int ptr = data_ptr;
@@ -768,7 +764,6 @@ public:
     state_time_.resize(nb_state_);
     double temp_start_infer_t =
         start_t_ - (((double)nb_overlap_) / state_freq_);
-    double temp_infer_duration = (nb_state_ - 1) / state_freq_;
     std::vector<double> t_vect_dt(nb_state_);
     for (int i = 0; i < nb_state_; ++i) {
       state_time_(i) = temp_start_infer_t + ((double)i) / state_freq_;
@@ -946,10 +941,11 @@ public:
     ceres::Solver::Summary summary;
     ceres::Solve(solver_opt, &optimisation, &summary);
 
-    auto acc_residual_id = optimisation.AddResidualBlock(
+    optimisation.AddResidualBlock(
         acc_cost_fun, nullptr, &(state_d_r_(0, 0)), &(state_d_r_(0, 1)),
         &(state_d_r_(0, 2)), &(state_acc_(0, 0)), &(state_acc_(0, 1)),
         &(state_acc_(0, 2)));
+
     for (int i = 3; i < 6; ++i) {
       GpNormCostFunction *cost_fun =
           new GpNormCostFunction(KK_inv_[i], acc_var[i - 3]);
@@ -1015,8 +1011,6 @@ public:
       d_acc_bf_[1].row(i) = temp_R.row(1);
       d_acc_bf_[2].row(i) = temp_R.row(2);
 
-      Vec3 temp_acc =
-          temp_R.transpose() * (state_acc_.row(i).transpose() + mean_acc);
       Mat3 temp_d_r_bw;
       temp_d_r_bw.row(0) = d_state_r_bw[0].row(i);
       temp_d_r_bw.row(1) = d_state_r_bw[1].row(i);
@@ -1168,11 +1162,12 @@ public:
   }
 
 private:
+  std::vector<GPSeHyper> hyper_;
   bool correlate_;
   double state_freq_;
   int nb_overlap_;
+  double start_t_;
 
-  std::vector<GPSeHyper> hyper_;
   MatX state_d_r_;
   MatX state_acc_;
 
@@ -1187,7 +1182,6 @@ private:
   std::vector<MatX> d_acc_bf_;
   std::vector<MatX> d_acc_bw_;
   std::vector<VecX> d_acc_dt_;
-  double start_t_;
   int nb_gyr_;
   int nb_acc_;
   int nb_state_;
@@ -1285,9 +1279,9 @@ private:
     // Prepare for the timeshift diff
     {
       ImuData temp_imu_data = imu_data;
-      for (int i = 0; i < temp_imu_data.gyr.size(); ++i)
+      for (size_t i = 0; i < temp_imu_data.gyr.size(); ++i)
         temp_imu_data.gyr[i].t -= kNumDtJacobianDelta;
-      for (int i = 0; i < temp_imu_data.acc.size(); ++i)
+      for (size_t i = 0; i < temp_imu_data.acc.size(); ++i)
         temp_imu_data.acc[i].t -= kNumDtJacobianDelta;
 
       d_r_dt_local_shift_.resize(3, nb_state_);
@@ -1356,7 +1350,7 @@ private:
       delta_r_bw_.resize(3, MatX(3, nb_state_));
       for (int axis = 0; axis < 3; ++axis) {
         ImuData temp_imu_data = imu_data;
-        for (int i = 0; i < temp_imu_data.gyr.size(); ++i)
+        for (size_t i = 0; i < temp_imu_data.gyr.size(); ++i)
           temp_imu_data.gyr[i].data[axis] += kNumGyrBiasJacobianDelta;
 
         PreintOption preint_opt;
@@ -1541,13 +1535,11 @@ ImuPreintegration::ImuPreintegration(
     prior_ = prior;
     start_t_ = start_t;
 
-    int nb_infer_vec = infer_t.size();
-
     if (opt_.type == UGPM) {
 
       // Get the maximum timestamp of infering points
       std::vector<double> temp_max;
-      for (int i = 0; i < infer_t.size(); ++i) {
+      for (size_t i = 0; i < infer_t.size(); ++i) {
         if (infer_t[i].size() > 0) {
           temp_max.push_back(
               *max_element(infer_t[i].begin(), infer_t[i].end()));
@@ -1559,9 +1551,9 @@ ImuPreintegration::ImuPreintegration(
       Se3Integrator se3_int(imu_data_, start_t, prior, duration,
                             opt_.state_freq, overlap, opt_.correlate);
       preint_.resize(infer_t.size());
-      for (int i = 0; i < infer_t.size(); ++i) {
+      for (size_t i = 0; i < infer_t.size(); ++i) {
         preint_[i].reserve(infer_t[i].size());
-        for (int j = 0; j < infer_t[i].size(); ++j) {
+        for (size_t j = 0; j < infer_t[i].size(); ++j) {
           preint_[i].push_back(se3_int.get(infer_t[i][j]));
         }
       }
@@ -1570,9 +1562,9 @@ ImuPreintegration::ImuPreintegration(
                                      opt_.min_freq, false, false);
 
       preint_.resize(infer_t.size());
-      for (int i = 0; i < infer_t.size(); ++i) {
+      for (size_t i = 0; i < infer_t.size(); ++i) {
         preint_[i].reserve(infer_t[i].size());
-        for (int j = 0; j < infer_t[i].size(); ++j) {
+        for (size_t j = 0; j < infer_t[i].size(); ++j) {
           preint_[i].push_back(integrator.get(i, j));
         }
       }
@@ -1605,7 +1597,7 @@ ImuPreintegration::ImuPreintegration(
       nb_chuncks = 1;
 
     // Create pointers for the inference times
-    std::vector<int> pointers(infer_t.size(), 0);
+    std::vector<size_t> pointers(infer_t.size(), 0);
     PreintMeas prev_chunck_preint;
     preint_.resize(infer_t.size());
     for (int i = 0; i < nb_chuncks; ++i) {
@@ -1620,7 +1612,7 @@ ImuPreintegration::ImuPreintegration(
         temp_temp_t.push_back(chunck_end_t);
         temp_infer_t.push_back(temp_temp_t);
       }
-      for (int j = 0; j < infer_t.size(); ++j) {
+      for (size_t j = 0; j < infer_t.size(); ++j) {
         bool loop = true;
         while (loop) {
           if (pointers[j] < (infer_t[j].size())) {
@@ -1646,15 +1638,15 @@ ImuPreintegration::ImuPreintegration(
         if (nb_chuncks > 1) {
           prev_chunck_preint = preint.get(infer_t.size(), 0, 0.0, 0.0);
         }
-        for (int j = 0; j < infer_t.size(); ++j) {
-          for (int h = 0; h < temp_infer_t[j].size(); ++h) {
+        for (size_t j = 0; j < infer_t.size(); ++j) {
+          for (size_t h = 0; h < temp_infer_t[j].size(); ++h) {
             preint_[j].push_back(preint.get(j, h, 0.0, 0.0));
           }
         }
       } else {
 
-        for (int j = 0; j < infer_t.size(); ++j) {
-          for (int h = 0; h < temp_infer_t[j].size(); ++h) {
+        for (size_t j = 0; j < infer_t.size(); ++j) {
+          for (size_t h = 0; h < temp_infer_t[j].size(); ++h) {
             PreintMeas temp_preint =
                 combinePreints(prev_chunck_preint, preint.get(j, h, 0.0, 0.0));
 
@@ -1704,8 +1696,9 @@ ImuPreintegration::ImuPreintegration(const ImuData &imu_data,
 // of the constructor
 PreintMeas ImuPreintegration::get(const int index_1, const int index_2,
                                   double acc_bias_std, double gyr_bias_std) {
-  if ((index_1 >= 0) && (index_2 >= 0) && (index_1 < preint_.size()) &&
-      (index_2 < preint_[index_1].size())) {
+  if ((index_1 >= 0) && (index_2 >= 0) &&
+      (index_1 < static_cast<int>(preint_.size())) &&
+      (index_2 < static_cast<int>(preint_[index_1].size()))) {
     // To be checked
     PreintMeas out = preint_[index_1][index_2];
 

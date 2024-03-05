@@ -331,7 +331,7 @@ private:
       p *= t;
 
     // Apply the simulation model
-    for (int i = 0; i < vel_sine_.size(); ++i) {
+    for (size_t i = 0; i < vel_sine_.size(); ++i) {
       for (int j = 0; j < 3; ++j) {
         output[j] += vel_sine_[i].amp[j] *
                      sin(2 * M_PI * vel_sine_[i].freq[j] * t) /
@@ -347,7 +347,7 @@ private:
     std::vector<double> output = vel_offset_;
 
     // Apply the simulation model
-    for (int i = 0; i < vel_sine_.size(); ++i) {
+    for (size_t i = 0; i < vel_sine_.size(); ++i) {
       for (int j = 0; j < 3; ++j) {
         output[j] +=
             vel_sine_[i].amp[j] * cos(2 * M_PI * vel_sine_[i].freq[j] * t);
@@ -362,7 +362,7 @@ private:
     std::vector<double> output = {0, 0, 0};
 
     // Apply the simulation model
-    for (int i = 0; i < vel_sine_.size(); ++i) {
+    for (size_t i = 0; i < vel_sine_.size(); ++i) {
       for (int j = 0; j < 3; ++j) {
         output[j] -= vel_sine_[i].amp[j] *
                      sin(2 * M_PI * vel_sine_[i].freq[j] * t) *

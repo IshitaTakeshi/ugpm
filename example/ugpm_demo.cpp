@@ -4,7 +4,7 @@
  *  Copyright 2021 Cedric LE GENTIL
  *
  *  This is a simple example of how to generate the UGPMs
- *  
+ *
  *  Disclaimer:
  *  This code is not optimised neither for performance neither for maintainability.
  *  There might still be errors in the code, logic or procedure. Every feedback is welcomed.
@@ -45,7 +45,7 @@ int main(int argc, char* argv[]){
 
     boost::program_options::variables_map var_map;
     boost::program_options::store(boost::program_options::parse_command_line(argc, argv, opt_description), var_map);
-    boost::program_options::notify(var_map);    
+    boost::program_options::notify(var_map);
 
     if(var_map.count("help")) {
         std::cout << opt_description << std::endl;
@@ -64,11 +64,11 @@ int main(int argc, char* argv[]){
     case ugpm::LPM:
         to_print = "LPM";
         break;
-    
+
     case ugpm::UGPM:
         to_print = "UGPM";
         break;
-    
+
     default:
         break;
     }
@@ -121,7 +121,7 @@ int main(int argc, char* argv[]){
     if(nb_infer > 1)
     {
         std::vector<double> temp_t_2;
-        for(int i = 0; i < nb_infer; ++i)
+        for (int i = 0; i < nb_infer; ++i)
         {
             double ratio = i/(double)(nb_infer);
             temp_t_2.push_back(start_t*(1-ratio) + end_t*ratio);
@@ -159,12 +159,12 @@ int main(int argc, char* argv[]){
 
         // Compute numerical preintegrated measurements to compare
         ugpm::PreintMeas preint_num_jacobian;
-        for(int i = 0; i < 3; ++i)
+        for (size_t i = 0; i < 3; ++i)
         {
             auto data_temp_bw = data;
             auto data_temp_bf = data;
-            for(int j = 0; j < data.gyr.size(); ++j) data_temp_bw.gyr[j].data[i] += num_quantum;
-            for(int j = 0; j < data.acc.size(); ++j) data_temp_bf.acc[j].data[i] += num_quantum;
+            for (size_t j = 0; j < data.gyr.size(); ++j) data_temp_bw.gyr[j].data[i] += num_quantum;
+            for (size_t j = 0; j < data.acc.size(); ++j) data_temp_bf.acc[j].data[i] += num_quantum;
 
             ugpm::ImuPreintegration preint_bw(data_temp_bw, start_t, t, preint_opt, prior);
             auto temp_preint = preint_bw.get(0,0);
@@ -180,8 +180,8 @@ int main(int argc, char* argv[]){
             preint_num_jacobian.d_delta_p_d_bf.col(i) = (temp_preint.delta_p - preint_meas.delta_p)/num_quantum;
         }
         auto data_temp_dt = data;
-        for(int j = 0; j < data.gyr.size(); ++j) data_temp_dt.gyr[j].t -= num_quantum;
-        for(int j = 0; j < data.acc.size(); ++j) data_temp_dt.acc[j].t -= num_quantum;
+        for (size_t j = 0; j < data.gyr.size(); ++j) data_temp_dt.gyr[j].t -= num_quantum;
+        for (size_t j = 0; j < data.acc.size(); ++j) data_temp_dt.acc[j].t -= num_quantum;
 
         ugpm::ImuPreintegration preint_dt(data_temp_dt, start_t, t, preint_opt, prior);
         auto temp_preint = preint_dt.get(0,0);

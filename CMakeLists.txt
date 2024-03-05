@@ -9,6 +9,7 @@ find_package(Boost COMPONENTS program_options REQUIRED)
 
 find_package(Ceres)
 
+add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 
 # Demonstration of the UGPM
 add_executable(ugpm_demo example/ugpm_demo.cpp)

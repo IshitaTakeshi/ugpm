@@ -118,7 +118,6 @@ inline MatX seKernelIntegral(const double a, const VecX &b, const VecX &x2,
 
 inline MatX seKernelIntegralDt(const double a, const VecX &b, const VecX &x2,
                                const double l2, const double sf2) {
-  double sqrt_inv_l2 = std::sqrt(1.0 / l2);
   MatX A(b.size(), x2.size());
   RowX c = sf2 *
            ((x2.transpose().array() - a).square() / (-2.0 * l2)).exp().matrix();
@@ -485,7 +484,7 @@ inline std::pair<Vec3, int> getClosest(const Vec3 &t,
                                        const std::vector<Vec3> s) {
   int id_min = 0;
   double dist_min = std::numeric_limits<double>::max();
-  for (int i = 0; i < s.size(); ++i) {
+  for (size_t i = 0; i < s.size(); ++i) {
     if ((t - s[i]).norm() < dist_min) {
       dist_min = (t - s[i]).norm();
       id_min = i;
@@ -746,10 +745,6 @@ inline PreintMeas combinePreints(const PreintMeas &prev_preint,
 
   PreintMeas temp_preint = preint;
   temp_preint.cov = Mat9::Zero();
-
-  Mat3 prev_pos_cov = prev_preint.cov.block<3, 3>(6, 6);
-  Mat3 prev_vel_cov = prev_preint.cov.block<3, 3>(3, 3);
-  Mat3 prev_rot_cov = prev_preint.cov.block<3, 3>(0, 0);
 
   temp_preint.cov = propagatePreintCov(prev_preint, preint);
 
