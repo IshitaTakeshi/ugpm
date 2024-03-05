@@ -485,7 +485,7 @@ private:
   Eigen::VectorXd acc_time_;
 
   // Compute the preintegration for the velocity and position part
-  void velPosPreintLPM(std::vector<std::vector<double>> &t,
+  void velPosPreintLPM(const std::vector<std::vector<double>> &t,
                        const std::vector<MatX> &d_acc_d_bf,
                        const std::vector<MatX> &d_acc_d_bw,
                        const std::vector<VecX> &d_acc_d_dt,
@@ -1003,8 +1003,7 @@ public:
     temp_t[0] = start_t_ + kNumDtJacobianDelta;
     for (int i = 0; i < 3; ++i) {
       start_r_dt[i] = (seKernelIntegral(start_t_, temp_t, state_time_,
-                                        hyper_[i].l2, hyper_[i].sf2) *
-                       alpha_[i])(0, 0) +
+                                        hyper_[i].l2, hyper_[i].sf2) * alpha_[i])(0, 0) +
                       kNumDtJacobianDelta * hyper_[i].mean;
     }
     Mat3 delta_R_dt_start = expMap(start_r_dt);

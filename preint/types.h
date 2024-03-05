@@ -330,7 +330,7 @@ template <typename T> std::vector<int> sortIndexes(const std::vector<T> &v) {
 template <class T> class SortIndexTracker2 {
 
 public:
-  SortIndexTracker2(std::vector<std::vector<T>> &data) : data_(&data) {
+  SortIndexTracker2(const std::vector<std::vector<T>> &data) : data_(&data) {
     std::vector<T> temp_data;
     std::vector<std::pair<int, int>> temp_map;
     for (int i = 0; i < data_->size(); ++i) {
@@ -420,7 +420,7 @@ public:
   }
 
 private:
-  std::vector<std::vector<T>> *data_;
+  const std::vector<std::vector<T>> *data_;
 
   std::vector<std::pair<int, int>> index_map_;
 };
