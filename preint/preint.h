@@ -205,6 +205,91 @@ std::vector<PreintMeas> rotPreint(const SortIndexTracker2<double> &t,
   return output;
 }
 
+void velPosPreintLPMPartial(
+    const SortIndexTracker2<double> &time,
+    const MatX & acc_data,
+    const VecX & acc_time,
+    const double start_t_,
+    const int nb_acc_,
+    std::vector<std::vector<PreintMeas>> &preint) {
+  int data_ptr = 0;
+
+  // For each of the query points of the timeline
+  int start_index = 0;
+  while (time.get(start_index) < start_t_) {
+    start_index++;
+    if (start_index == time.size()) {
+      throw std::range_error(
+          "LPM Partial: the start_time is not in the query domain");
+    }
+  }
+  while (acc_time[data_ptr + 1] < start_t_) {
+    data_ptr++;
+    if (data_ptr == (nb_acc_ - 1)) {
+      throw std::range_error(
+          "LPM Partial: the start_time is not in the data domain");
+    }
+  }
+
+  for (int axis = 0; axis < 3; ++axis) {
+    int ptr = data_ptr;
+    double alpha = (acc_data(axis, ptr + 1) - acc_data(axis, ptr)) /
+                   (acc_time[ptr + 1] - acc_time[ptr]);
+    double beta = acc_data(axis, ptr) - alpha * acc_time[ptr];
+    double t_0 = start_t_;
+    double t_1 = acc_time[ptr + 1];
+    double d_0 = alpha * acc_time[ptr] + beta;
+    double d_1 = acc_data(axis, ptr + 1);
+    double d_v_backup = 0;
+    double d_p_backup = 0;
+
+    for (int i = start_index; i < time.size(); ++i) {
+      // Move the data pointer so that the query time is in between two data
+      // points
+      if (time.get(i) > acc_time[0]) {
+        bool loop = true;
+        while (loop) {
+          if ((time.get(i) >= acc_time[ptr]) &&
+              (time.get(i) <= acc_time[ptr + 1])) {
+            loop = false;
+          } else {
+            if (ptr < (nb_acc_ - 2)) {
+
+              d_p_backup =
+                  d_p_backup + d_v_backup * (t_1 - t_0) +
+                  ((t_0 - t_1) * (t_0 - t_1) * (2.0 * d_0 + d_1) / 6.0);
+              d_v_backup = d_v_backup + ((t_1 - t_0) * (d_0 + d_1) / 2.0);
+
+              ptr++;
+              t_0 = acc_time[ptr];
+              t_1 = acc_time[ptr + 1];
+              d_0 = acc_data(axis, ptr);
+              d_1 = acc_data(axis, ptr + 1);
+
+              alpha = (d_1 - d_0) / (t_1 - t_0);
+              beta = d_0 - alpha * t_0;
+            } else {
+              loop = false;
+            }
+          }
+        }
+      }
+
+      // Integrate
+      double time_temp = time.get(i);
+      double temp_d_1 = alpha * time_temp + beta;
+      double temp_d_v =
+          d_v_backup + ((time_temp - t_0) * (d_0 + temp_d_1) / 2.0);
+      double temp_d_p = d_p_backup + d_v_backup * (time_temp - t_0) +
+                        ((t_0 - time_temp) * (t_0 - time_temp) *
+                         (2.0 * d_0 + temp_d_1) / 6.0);
+      std::pair<double, double> index = time.getIndexPair(i);
+      preint[index.first][index.second].delta_v(axis) = temp_d_v;
+      preint[index.first][index.second].delta_p(axis) = temp_d_p;
+    }
+  }
+}
+
 enum QueryType { kVecVec, kVec, kSingle };
 
 const int kOverlap = 8;
@@ -458,7 +543,7 @@ public:
         infer_t.pop_back();
       }
       SortIndexTracker2<double> temp_t(infer_t);
-      velPosPreintLPMPartial(temp_t, acc_data_, acc_time_, preint_);
+      velPosPreintLPMPartial(temp_t, acc_data_, acc_time_, start_t_, nb_acc_, preint_);
     }
   }
 
@@ -503,7 +588,7 @@ private:
       acc_data_.col(i) += kNumDtJacobianDelta * temp_d_acc_d_dt;
       acc_time_[i] -= kNumDtJacobianDelta;
     }
-    velPosPreintLPMPartial(time, acc_data_, acc_time_, preint);
+    velPosPreintLPMPartial(time, acc_data_, acc_time_, start_t_, nb_acc_, preint);
 
     acc_data_ = save_acc_data;
     acc_time_ = save_acc_time;
@@ -656,89 +741,6 @@ private:
             d_p_d_bf_backup + dt * d_v_d_bf_backup + temp_d_p_d_bf;
         preint[index.first][index.second].d_delta_p_d_bw.row(axis) =
             d_p_d_bw_backup + dt * d_v_d_bw_backup + temp_d_p_d_bw;
-      }
-    }
-  }
-
-  void velPosPreintLPMPartial(
-      const SortIndexTracker2<double> &time,
-      const MatX & acc_data,
-      const VecX & acc_time,
-      std::vector<std::vector<PreintMeas>> &preint) const {
-    int data_ptr = 0;
-
-    // For each of the query points of the timeline
-    int start_index = 0;
-    while (time.get(start_index) < start_t_) {
-      start_index++;
-      if (start_index == time.size()) {
-        throw std::range_error(
-            "LPM Partial: the start_time is not in the query domain");
-      }
-    }
-    while (acc_time[data_ptr + 1] < start_t_) {
-      data_ptr++;
-      if (data_ptr == (nb_acc_ - 1)) {
-        throw std::range_error(
-            "LPM Partial: the start_time is not in the data domain");
-      }
-    }
-
-    for (int axis = 0; axis < 3; ++axis) {
-      int ptr = data_ptr;
-      double alpha = (acc_data(axis, ptr + 1) - acc_data(axis, ptr)) /
-                     (acc_time[ptr + 1] - acc_time[ptr]);
-      double beta = acc_data(axis, ptr) - alpha * acc_time[ptr];
-      double t_0 = start_t_;
-      double t_1 = acc_time[ptr + 1];
-      double d_0 = alpha * acc_time[ptr] + beta;
-      double d_1 = acc_data(axis, ptr + 1);
-      double d_v_backup = 0;
-      double d_p_backup = 0;
-
-      for (int i = start_index; i < time.size(); ++i) {
-        // Move the data pointer so that the query time is in between two data
-        // points
-        if (time.get(i) > acc_time[0]) {
-          bool loop = true;
-          while (loop) {
-            if ((time.get(i) >= acc_time[ptr]) &&
-                (time.get(i) <= acc_time[ptr + 1])) {
-              loop = false;
-            } else {
-              if (ptr < (nb_acc_ - 2)) {
-
-                d_p_backup =
-                    d_p_backup + d_v_backup * (t_1 - t_0) +
-                    ((t_0 - t_1) * (t_0 - t_1) * (2.0 * d_0 + d_1) / 6.0);
-                d_v_backup = d_v_backup + ((t_1 - t_0) * (d_0 + d_1) / 2.0);
-
-                ptr++;
-                t_0 = acc_time[ptr];
-                t_1 = acc_time[ptr + 1];
-                d_0 = acc_data(axis, ptr);
-                d_1 = acc_data(axis, ptr + 1);
-
-                alpha = (d_1 - d_0) / (t_1 - t_0);
-                beta = d_0 - alpha * t_0;
-              } else {
-                loop = false;
-              }
-            }
-          }
-        }
-
-        // Integrate
-        double time_temp = time.get(i);
-        double temp_d_1 = alpha * time_temp + beta;
-        double temp_d_v =
-            d_v_backup + ((time_temp - t_0) * (d_0 + temp_d_1) / 2.0);
-        double temp_d_p = d_p_backup + d_v_backup * (time_temp - t_0) +
-                          ((t_0 - time_temp) * (t_0 - time_temp) *
-                           (2.0 * d_0 + temp_d_1) / 6.0);
-        std::pair<double, double> index = time.getIndexPair(i);
-        preint[index.first][index.second].delta_v(axis) = temp_d_v;
-        preint[index.first][index.second].delta_p(axis) = temp_d_p;
       }
     }
   }
