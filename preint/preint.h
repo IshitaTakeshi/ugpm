@@ -738,6 +738,17 @@ double get_imu_frequency(const std::vector<ImuSample> &acc,
   return std::min(acc_freq, gyr_freq);
 }
 
+VecX calc_state_time(const double start_t_, const int nb_state_,
+                     const int nb_overlap_, const double state_freq_) {
+  VecX state_time(nb_state_);
+  const double temp_start_infer_t =
+      start_t_ - (((double)nb_overlap_) / state_freq_);
+  for (int i = 0; i < nb_state_; ++i) {
+    state_time(i) = temp_start_infer_t + ((double)i) / state_freq_;
+  }
+  return state_time;
+}
+
 // Se3 Integrator for UGPM
 class Se3Integrator {
 
@@ -750,16 +761,11 @@ public:
         state_freq_(std::clamp(state_freq, 5.0 / window_duration,
                                get_imu_frequency(imu_data.acc, imu_data.gyr))),
         nb_overlap_(nb_overlap), start_t_(start_time),
-        nb_state_(std::ceil(window_duration * state_freq_) +
-                  (2 * nb_overlap_)) {
-
-    // Create the state timeline
-    state_time_.resize(nb_state_);
-    double temp_start_infer_t =
-        start_t_ - (((double)nb_overlap_) / state_freq_);
+        nb_state_(std::ceil(window_duration * state_freq_) + (2 * nb_overlap_)),
+        state_time_(
+            calc_state_time(start_t_, nb_state_, nb_overlap_, state_freq_)) {
     std::vector<double> t_vect_dt(nb_state_);
     for (int i = 0; i < nb_state_; ++i) {
-      state_time_(i) = temp_start_infer_t + ((double)i) / state_freq_;
       t_vect_dt[i] = state_time_(i) + kNumDtJacobianDelta;
     }
 
