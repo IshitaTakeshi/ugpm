@@ -425,7 +425,8 @@ public:
                       const PreintPrior bias_prior,
                       const std::vector<std::vector<double>> &time,
                       const double min_freq = 500, const bool bare = false,
-                      const bool rot_only = false) {
+                      const bool rot_only = false)
+      : gyr_var_(imu_data.gyr_var), acc_var_(imu_data.acc_var) {
     start_t_ = start_time;
     bare_ = bare;
 
@@ -434,8 +435,6 @@ public:
     // Fill the private structures and other variables
     nb_gyr_ = imu_data.gyr.size();
     nb_acc_ = imu_data.acc.size();
-    gyr_var_ = imu_data.gyr_var;
-    acc_var_ = imu_data.acc_var;
     gyr_data_.resize(3, nb_gyr_);
     acc_data_.resize(3, nb_acc_);
     gyr_time_.resize(nb_gyr_);
@@ -732,6 +731,13 @@ private:
   }
 };
 
+double get_imu_frequency(const std::vector<ImuSample> &acc,
+                         const std::vector<ImuSample> &gyr) {
+  const double acc_freq = (acc.size() - 1) / (acc.back().t - acc[0].t);
+  const double gyr_freq = (gyr.size() - 1) / (gyr.back().t - gyr[0].t);
+  return std::min(acc_freq, gyr_freq);
+}
+
 // Se3 Integrator for UGPM
 class Se3Integrator {
 
@@ -740,17 +746,10 @@ public:
                 const PreintPrior bias_prior, const double window_duration,
                 const double state_freq = 50.0, const int nb_overlap = kOverlap,
                 const bool correlate = true)
-      : hyper_(6), correlate_(correlate), state_freq_(state_freq),
+      : hyper_(6), correlate_(correlate),
+        state_freq_(std::clamp(state_freq, 5.0 / window_duration,
+                               get_imu_frequency(imu_data.acc, imu_data.gyr))),
         nb_overlap_(nb_overlap), start_t_(start_time) {
-
-    double acc_freq =
-        (imu_data.acc.size() - 1) / (imu_data.acc.back().t - imu_data.acc[0].t);
-    double gyr_freq =
-        (imu_data.gyr.size() - 1) / (imu_data.gyr.back().t - imu_data.gyr[0].t);
-    double imu_freq = std::min(acc_freq, gyr_freq);
-
-    state_freq_ = std::max(state_freq, 5.0 / (window_duration));
-    state_freq_ = std::min(state_freq_, imu_freq);
 
     // Create the state timeline
     nb_state_ = std::ceil(window_duration * state_freq_) + (2 * nb_overlap_);
@@ -765,10 +764,10 @@ public:
 
     auto temp_imu_data =
         imu_data.get(state_time_(0), state_time_(state_time_.size() - 1));
-
-    // Fill the private structures and other variables
     nb_gyr_ = temp_imu_data.gyr.size();
     nb_acc_ = temp_imu_data.acc.size();
+
+    // Fill the private structures and other variables
     gyr_data_.resize(3, nb_gyr_);
     acc_data_.resize(3, nb_acc_);
     gyr_time_.resize(nb_gyr_);
@@ -1160,10 +1159,10 @@ public:
 
 private:
   std::vector<GPSeHyper> hyper_;
-  bool correlate_;
+  const bool correlate_;
   double state_freq_;
-  int nb_overlap_;
-  double start_t_;
+  const int nb_overlap_;
+  const double start_t_;
 
   MatX state_d_r_;
   MatX state_acc_;
