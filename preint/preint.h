@@ -731,6 +731,13 @@ private:
   }
 };
 
+double get_imu_duration(const std::vector<ImuSample> &acc,
+                        const std::vector<ImuSample> &gyr) {
+  const double acc_period = (acc.back().t - acc[0].t) / (acc.size() - 1);
+  const double gyr_period = (gyr.back().t - gyr[0].t) / (gyr.size() - 1);
+  return std::max(acc_period, gyr_period);
+}
+
 double get_imu_frequency(const std::vector<ImuSample> &acc,
                          const std::vector<ImuSample> &gyr) {
   const double acc_freq = (acc.size() - 1) / (acc.back().t - acc[0].t);
@@ -1368,7 +1375,7 @@ private:
         std::vector<std::vector<double>> t;
         t.push_back(to_std_vector(state_time_));
         t.push_back(to_std_vector(state_time_dt));
-        t.push_back(std::vector<double>(1, start_t_));
+        t.push_back(std::vector<double>{start_t_});
         PreintPrior bias_prior;
         IterativeIntegrator preint(temp_imu_data, state_time_[0], bias_prior, t,
                                    500.0, true, true);
@@ -1596,11 +1603,7 @@ ImuPreintegration::ImuPreintegration(
     }
 
     // Get the overlap value (check diff between )
-    double acc_period = (imu_data_.acc.back().t - imu_data_.acc[0].t) /
-                        (imu_data_.acc.size() - 1);
-    double gyr_period = (imu_data_.gyr.back().t - imu_data_.gyr[0].t) /
-                        (imu_data_.gyr.size() - 1);
-    double imu_period = std::max(acc_period, gyr_period);
+    const double imu_period = get_imu_duration(imu_data.acc, imu_data.gyr);
     double t_overlap = imu_period * overlap;
 
     int nb_chuncks = (int)std::ceil((last_t - start_t) / opt.quantum);
@@ -1638,7 +1641,7 @@ ImuPreintegration::ImuPreintegration(
           }
         }
       }
-      auto temp_imu_data =
+      const auto temp_imu_data =
           imu_data_.get(chunck_start_t - t_overlap, chunck_end_t + t_overlap);
       auto temp_opt = opt;
       temp_opt.quantum = -1;
