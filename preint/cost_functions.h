@@ -400,14 +400,15 @@ public:
     weight_(2, 2) = std::sqrt(1.0 / acc_var);
 
     for (int i = 0; i < 6; ++i) {
+      const double l2 = hyper[i].l2;
+      const double sf2 = hyper[i].sf2;
       if (i < 3) {
-        const MatX ks_int = seKernelIntegral(start_t, acc_time, state_time,
-                                             hyper[i].l2, hyper[i].sf2);
+        const MatX ks_int =
+            seKernelIntegral(start_t, acc_time, state_time, l2, sf2);
         K_gyr_int_K_inv_[i] = ks_int * K_inv[i];
         mean_dr_[i] = hyper[i].mean;
       } else {
-        const MatX ks =
-            seKernel(acc_time, state_time, hyper[i].l2, hyper[i].sf2);
+        const MatX ks = seKernel(acc_time, state_time, l2, sf2);
         K_acc_K_inv_[i - 3] = ks * K_inv[i];
         mean_acc_[i - 3] = hyper[i].mean;
       }
