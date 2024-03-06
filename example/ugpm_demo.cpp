@@ -30,19 +30,22 @@ int main(int argc, char *argv[]) {
   // Program options
   boost::program_options::options_description opt_description(
       "Allowed options");
-  opt_description.add_options()("help,h", "Produce help message")(
-      "method,m", boost::program_options::value<std::string>(),
-      "LPM | UGPM")("length,l", boost::program_options::value<double>(),
-                    "Length simulated integration (default = 2.0)")(
-      "jacobian,j", boost::program_options::bool_switch(&test_jacobians),
-      "Flag to activate the testing of the Jacobians")(
-      "nb_inference,n", boost::program_options::value<int>(),
-      "Nb of inferrences (to simulate lidar nb of inferences), Default = 1")(
-      "quantum,q", boost::program_options::value<double>(),
-      "Time quantum for piece-wise integration (useful for long integration "
-      "intervals, -1 to deactivate (default = -0.2)")(
-      "correlate,c", boost::program_options::bool_switch(&preint_opt.correlate),
+  // clang-format off
+  opt_description.add_options()
+    ("help,h", "Produce help message")
+    ("method,m", boost::program_options::value<std::string>(), "LPM | UGPM")
+    ("length,l", boost::program_options::value<double>(),
+      "Length simulated integration (default = 2.0)")
+    ("jacobian,j", boost::program_options::bool_switch(&test_jacobians),
+      "Flag to activate the testing of the Jacobians")
+    ("nb_inference,n", boost::program_options::value<int>(),
+     "Nb of inferrences (to simulate lidar nb of inferences), Default = 1")
+    ("quantum,q", boost::program_options::value<double>(),
+     "Time quantum for piece-wise integration (useful for long integration "
+     "intervals, -1 to deactivate (default = -0.2)")
+    ("correlate,c", boost::program_options::bool_switch(&preint_opt.correlate),
       "Flag to activate the correlation of the covariance matrix");
+  // clang-format on
 
   boost::program_options::variables_map var_map;
   boost::program_options::store(
@@ -60,20 +63,12 @@ int main(int argc, char *argv[]) {
     std::string type = var_map["method"].as<std::string>();
     preint_opt.type = ugpm::strToPreintType(type);
   }
-  std::string to_print;
-  switch (preint_opt.type) {
-  case ugpm::LPM:
-    to_print = "LPM";
-    break;
 
-  case ugpm::UGPM:
-    to_print = "UGPM";
-    break;
-
-  default:
-    break;
+  if (preint_opt.type == ugpm::LPM) {
+    std::cout << "Preintegration demonstration with LPM" << std::endl;
+  } else if (preint_opt.type == ugpm::UGPM) {
+    std::cout << "Preintegration demonstration with UGPM" << std::endl;
   }
-  std::cout << "Preintegration demonstration with " << to_print << std::endl;
 
   double integration_length = 2;
   if (var_map.count("length")) {
@@ -129,7 +124,7 @@ int main(int argc, char *argv[]) {
   stop_watch.stop();
   stop_watch.print();
 
-  ugpm::PreintMeas preint_meas = preint.get(0, 0, 0.0, 0.0);
+  const ugpm::PreintMeas preint_meas = preint.get(0, 0, 0.0, 0.0);
 
   std::vector<double> error =
       imu_sim.testPreint(start_t, end_t, preint.get(0, 0));

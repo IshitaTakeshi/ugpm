@@ -36,7 +36,7 @@ public:
   // Combined cost function for SO3 integration
   bool Evaluate(double const *const *parameters, double *residuals,
                 double **jacobians) const {
-    Eigen::Map<const VecX> s(&(parameters[0][0]), nb_data_, 1);
+    const Eigen::Map<const VecX> s(&(parameters[0][0]), nb_data_, 1);
 
     const VecX d_rot_d_t = KK_inv_ * s;
 
@@ -328,7 +328,7 @@ public:
       temp.row(i) = (jacobianRighthandSO3(rot_vec) * (d_rot_vec)).transpose();
 
       if (jacobians != NULL) {
-        Mat3_6 d_res_d_rdr = JacobianRes(rot_vec, d_rot_vec);
+        const Mat3_6 d_res_d_rdr = JacobianRes(rot_vec, d_rot_vec);
 
         for (int axis = 0; axis < 3; ++axis) {
           if (jacobians[axis] != NULL) {

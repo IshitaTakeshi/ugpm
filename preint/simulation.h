@@ -65,7 +65,7 @@ class ImuSimulator {
 public:
   // Constructor that computes the simulated data `imu_data_`
   // according to the given options
-  ImuSimulator(ImuSimulatorOption opt) {
+  ImuSimulator(const ImuSimulatorOption &opt) {
     imu_data_.t_offset = 0.0;
     imu_data_.acc_var = opt.acc_std * opt.acc_std;
     imu_data_.gyr_var = opt.gyr_std * opt.gyr_std;
@@ -387,29 +387,26 @@ private:
   std::vector<double> getAngVel(const double t) {
     // Initialise the output vector
     std::vector<double> output(3);
+
+    const double a1 = rot_sine_.amp[1];
+    const double a2 = rot_sine_.amp[2];
+
+    const double kf0 = 2 * rot_sine_.amp[0] * rot_sine_.freq[0] * M_PI;
+    const double kf1 = 2 * rot_sine_.amp[1] * rot_sine_.freq[1] * M_PI;
+    const double kf2 = 2 * rot_sine_.amp[2] * rot_sine_.freq[2] * M_PI;
+
+    const double theta0 = 2 * M_PI * rot_sine_.freq[0] * t;
+    const double theta1 = 2 * M_PI * rot_sine_.freq[1] * t;
+    const double theta2 = 2 * M_PI * rot_sine_.freq[2] * t;
+
     // Sinulate from euler sine
-    output[0] =
-        2 * rot_sine_.amp[2] * rot_sine_.freq[2] * M_PI *
-            cos(2 * M_PI * rot_sine_.freq[2] * t) -
-        2 * rot_sine_.amp[0] * rot_sine_.freq[0] * M_PI *
-            sin(rot_sine_.amp[1] * sin(2 * M_PI * rot_sine_.freq[1] * t)) *
-            cos(2 * M_PI * rot_sine_.freq[0] * t);
+    output[0] = kf2 * cos(theta2) - kf0 * sin(a1 * sin(theta1)) * cos(theta0);
     output[1] =
-        2 * rot_sine_.amp[1] * rot_sine_.freq[1] * M_PI *
-            cos(2 * M_PI * rot_sine_.freq[1] * t) *
-            cos(rot_sine_.amp[2] * sin(2 * M_PI * rot_sine_.freq[2] * t)) +
-        2 * rot_sine_.amp[0] * rot_sine_.freq[0] * M_PI *
-            sin(rot_sine_.amp[2] * sin(2 * M_PI * rot_sine_.freq[2] * t)) *
-            cos(2 * M_PI * rot_sine_.freq[0] * t) *
-            cos(rot_sine_.amp[1] * sin(2 * M_PI * rot_sine_.freq[1] * t));
+        kf1 * cos(theta1) * cos(a2 * sin(theta2)) +
+        kf0 * sin(a2 * sin(theta2)) * cos(theta0) * cos(a1 * sin(theta1));
     output[2] =
-        2 * rot_sine_.amp[0] * rot_sine_.freq[0] * M_PI *
-            cos(2 * M_PI * rot_sine_.freq[0] * t) *
-            cos(rot_sine_.amp[1] * sin(2 * M_PI * rot_sine_.freq[1] * t)) *
-            cos(rot_sine_.amp[2] * sin(2 * M_PI * rot_sine_.freq[2] * t)) -
-        2 * rot_sine_.amp[1] * rot_sine_.freq[1] * M_PI *
-            sin(rot_sine_.amp[2] * sin(2 * M_PI * rot_sine_.freq[2] * t)) *
-            cos(2 * M_PI * rot_sine_.freq[1] * t);
+        kf0 * cos(theta0) * cos(a1 * sin(theta1)) * cos(a2 * sin(theta2)) -
+        kf1 * sin(a2 * sin(theta2)) * cos(theta1);
 
     return output;
   }
