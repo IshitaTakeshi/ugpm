@@ -439,13 +439,13 @@ public:
     acc_data_.resize(3, nb_acc_);
     gyr_time_.resize(nb_gyr_);
     acc_time_.resize(nb_acc_);
-    for (int i = 0; i < nb_gyr_; ++i) {
+    for (size_t i = 0; i < nb_gyr_; ++i) {
       gyr_data_(0, i) = imu_data.gyr[i].data[0] - bias_prior.gyr_bias[0];
       gyr_data_(1, i) = imu_data.gyr[i].data[1] - bias_prior.gyr_bias[1];
       gyr_data_(2, i) = imu_data.gyr[i].data[2] - bias_prior.gyr_bias[2];
       gyr_time_(i) = imu_data.gyr[i].t;
     }
-    for (int i = 0; i < nb_acc_; ++i) {
+    for (size_t i = 0; i < nb_acc_; ++i) {
       acc_data_(0, i) = imu_data.acc[i].data[0] - bias_prior.acc_bias[0];
       acc_data_(1, i) = imu_data.acc[i].data[1] - bias_prior.acc_bias[1];
       acc_data_(2, i) = imu_data.acc[i].data[2] - bias_prior.acc_bias[2];
@@ -463,8 +463,9 @@ public:
     temp_infer_t1.push_back(start_t_ + kNumDtJacobianDelta);
     infer_t.push_back(temp_infer_t1);
     std::vector<double> temp_infer_t2;
-    for (int i = 0; i < nb_acc_; ++i)
+    for (size_t i = 0; i < nb_acc_; ++i) {
       temp_infer_t2.push_back(acc_time_(i));
+    }
     infer_t.push_back(temp_infer_t2);
 
     // Sort the timestamps
@@ -553,8 +554,8 @@ private:
 
   int start_index_;
 
-  int nb_gyr_;
-  int nb_acc_;
+  size_t nb_gyr_;
+  size_t nb_acc_;
   double gyr_var_;
   double acc_var_;
   Eigen::MatrixXd gyr_data_;
@@ -571,7 +572,7 @@ private:
     // Compute with the time shift (could be optimised somehow I guess)
     MatX acc_data = acc_data_;
     VecX acc_time = acc_time_;
-    for (int i = 0; i < nb_acc_; ++i) {
+    for (size_t i = 0; i < nb_acc_; ++i) {
       const Vec3 temp_d_acc_d_dt(d_acc_d_dt[0].coeff(i), d_acc_d_dt[1].coeff(i),
                                  d_acc_d_dt[2].coeff(i));
       acc_data.col(i) += kNumDtJacobianDelta * temp_d_acc_d_dt;
@@ -581,7 +582,7 @@ private:
     const SortIndexTracker2<double> time(t);
     velPosPreintLPMPartial(time, acc_data, acc_time, start_t_, nb_acc_, preint);
 
-    int data_ptr = 0;
+    size_t data_ptr = 0;
 
     // For each of the query points of the timeline
     int start_index = 0;
@@ -599,7 +600,7 @@ private:
     }
 
     for (int axis = 0; axis < 3; ++axis) {
-      int ptr = data_ptr;
+      size_t ptr = data_ptr;
       double alpha = (acc_data_(axis, ptr + 1) - acc_data_(axis, ptr)) /
                      (acc_time_[ptr + 1] - acc_time_[ptr]);
       double beta = acc_data_(axis, ptr) - alpha * acc_time_[ptr];
@@ -776,23 +777,23 @@ public:
       t_vect_dt[i] = state_time_(i) + kNumDtJacobianDelta;
     }
 
-    auto temp_imu_data =
+    const auto temp_imu_data =
         imu_data.get(state_time_(0), state_time_(state_time_.size() - 1));
-    nb_gyr_ = temp_imu_data.gyr.size();
-    nb_acc_ = temp_imu_data.acc.size();
+    const size_t nb_gyr = temp_imu_data.gyr.size();
+    const size_t nb_acc = temp_imu_data.acc.size();
 
     // Fill the private structures and other variables
-    gyr_data_.resize(3, nb_gyr_);
-    acc_data_.resize(3, nb_acc_);
-    gyr_time_.resize(nb_gyr_);
-    acc_time_.resize(nb_acc_);
-    for (int i = 0; i < nb_gyr_; ++i) {
+    gyr_data_.resize(3, nb_gyr);
+    acc_data_.resize(3, nb_acc);
+    gyr_time_.resize(nb_gyr);
+    acc_time_.resize(nb_acc);
+    for (size_t i = 0; i < nb_gyr; ++i) {
       gyr_data_(0, i) = temp_imu_data.gyr[i].data[0] - bias_prior.gyr_bias[0];
       gyr_data_(1, i) = temp_imu_data.gyr[i].data[1] - bias_prior.gyr_bias[1];
       gyr_data_(2, i) = temp_imu_data.gyr[i].data[2] - bias_prior.gyr_bias[2];
       gyr_time_(i) = temp_imu_data.gyr[i].t;
     }
-    for (int i = 0; i < nb_acc_; ++i) {
+    for (size_t i = 0; i < nb_acc; ++i) {
       acc_data_(0, i) = temp_imu_data.acc[i].data[0] - bias_prior.acc_bias[0];
       acc_data_(1, i) = temp_imu_data.acc[i].data[1] - bias_prior.acc_bias[1];
       acc_data_(2, i) = temp_imu_data.acc[i].data[2] - bias_prior.acc_bias[2];
@@ -879,11 +880,11 @@ public:
     // the results)
     if (correlate) {
       state_cor_.resize(6 * nb_state_, 6 * nb_state_);
-      MatX state_J(3 * nb_gyr_ + 3 * nb_acc_, 6 * nb_state_);
+      MatX state_J(3 * nb_gyr + 3 * nb_acc, 6 * nb_state_);
       state_J.setZero();
-      RowMajorMatrix temp_J_0_r(3 * nb_gyr_, nb_state_);
-      RowMajorMatrix temp_J_1_r(3 * nb_gyr_, nb_state_);
-      RowMajorMatrix temp_J_2_r(3 * nb_gyr_, nb_state_);
+      RowMajorMatrix temp_J_0_r(3 * nb_gyr, nb_state_);
+      RowMajorMatrix temp_J_1_r(3 * nb_gyr, nb_state_);
+      RowMajorMatrix temp_J_2_r(3 * nb_gyr, nb_state_);
       std::vector<double *> param;
       param.push_back(&(state_d_r_(0, 0)));
       param.push_back(&(state_d_r_(0, 1)));
@@ -892,18 +893,18 @@ public:
       jacobian.push_back(temp_J_0_r.data());
       jacobian.push_back(temp_J_1_r.data());
       jacobian.push_back(temp_J_2_r.data());
-      VecX temp_res_r(3 * nb_gyr_);
+      VecX temp_res_r(3 * nb_gyr);
       rot_cost_fun->Evaluate(param.data(), temp_res_r.data(), jacobian.data());
-      state_J.block(0, 0, 3 * nb_gyr_, nb_state_) = temp_J_0_r;
-      state_J.block(0, nb_state_, 3 * nb_gyr_, nb_state_) = temp_J_1_r;
-      state_J.block(0, 2 * nb_state_, 3 * nb_gyr_, nb_state_) = temp_J_2_r;
+      state_J.block(0, 0, 3 * nb_gyr, nb_state_) = temp_J_0_r;
+      state_J.block(0, nb_state_, 3 * nb_gyr, nb_state_) = temp_J_1_r;
+      state_J.block(0, 2 * nb_state_, 3 * nb_gyr, nb_state_) = temp_J_2_r;
 
-      RowMajorMatrix temp_J_0(3 * nb_acc_, nb_state_);
-      RowMajorMatrix temp_J_1(3 * nb_acc_, nb_state_);
-      RowMajorMatrix temp_J_2(3 * nb_acc_, nb_state_);
-      RowMajorMatrix temp_J_3(3 * nb_acc_, nb_state_);
-      RowMajorMatrix temp_J_4(3 * nb_acc_, nb_state_);
-      RowMajorMatrix temp_J_5(3 * nb_acc_, nb_state_);
+      RowMajorMatrix temp_J_0(3 * nb_acc, nb_state_);
+      RowMajorMatrix temp_J_1(3 * nb_acc, nb_state_);
+      RowMajorMatrix temp_J_2(3 * nb_acc, nb_state_);
+      RowMajorMatrix temp_J_3(3 * nb_acc, nb_state_);
+      RowMajorMatrix temp_J_4(3 * nb_acc, nb_state_);
+      RowMajorMatrix temp_J_5(3 * nb_acc, nb_state_);
       param.clear();
       param.push_back(&(state_d_r_(0, 0)));
       param.push_back(&(state_d_r_(0, 1)));
@@ -918,17 +919,17 @@ public:
       jacobian.push_back(temp_J_3.data());
       jacobian.push_back(temp_J_4.data());
       jacobian.push_back(temp_J_5.data());
-      VecX temp_res(3 * nb_acc_);
+      VecX temp_res(3 * nb_acc);
       acc_cost_fun->Evaluate(param.data(), temp_res.data(), jacobian.data());
-      state_J.block(3 * nb_gyr_, 0, 3 * nb_acc_, nb_state_) = temp_J_0;
-      state_J.block(3 * nb_gyr_, nb_state_, 3 * nb_acc_, nb_state_) = temp_J_1;
-      state_J.block(3 * nb_gyr_, 2 * nb_state_, 3 * nb_acc_, nb_state_) =
+      state_J.block(3 * nb_gyr, 0, 3 * nb_acc, nb_state_) = temp_J_0;
+      state_J.block(3 * nb_gyr, nb_state_, 3 * nb_acc, nb_state_) = temp_J_1;
+      state_J.block(3 * nb_gyr, 2 * nb_state_, 3 * nb_acc, nb_state_) =
           temp_J_2;
-      state_J.block(3 * nb_gyr_, 3 * nb_state_, 3 * nb_acc_, nb_state_) =
+      state_J.block(3 * nb_gyr, 3 * nb_state_, 3 * nb_acc, nb_state_) =
           temp_J_3;
-      state_J.block(3 * nb_gyr_, 4 * nb_state_, 3 * nb_acc_, nb_state_) =
+      state_J.block(3 * nb_gyr, 4 * nb_state_, 3 * nb_acc, nb_state_) =
           temp_J_4;
-      state_J.block(3 * nb_gyr_, 5 * nb_state_, 3 * nb_acc_, nb_state_) =
+      state_J.block(3 * nb_gyr, 5 * nb_state_, 3 * nb_acc, nb_state_) =
           temp_J_5;
 
       // Launch the correlation computation in a separate thread
@@ -1190,8 +1191,6 @@ private:
   std::vector<MatX> d_acc_bf_;
   std::vector<MatX> d_acc_bw_;
   std::vector<VecX> d_acc_dt_;
-  int nb_gyr_;
-  int nb_acc_;
   MatX gyr_data_;
   MatX acc_data_;
   VecX gyr_time_;
@@ -1604,7 +1603,7 @@ ImuPreintegration::ImuPreintegration(
 
     // Get the overlap value (check diff between )
     const double imu_period = get_imu_duration(imu_data.acc, imu_data.gyr);
-    double t_overlap = imu_period * overlap;
+    const double t_overlap = imu_period * overlap;
 
     int nb_chuncks = (int)std::ceil((last_t - start_t) / opt.quantum);
     if (nb_chuncks == 0)
@@ -1617,8 +1616,9 @@ ImuPreintegration::ImuPreintegration(
     for (int i = 0; i < nb_chuncks; ++i) {
       double chunck_start_t = start_t + (i * opt.quantum);
       double chunck_end_t = start_t + ((i + 1) * opt.quantum);
-      if (i == nb_chuncks - 1)
+      if (i == nb_chuncks - 1) {
         chunck_end_t = std::numeric_limits<double>::infinity();
+      }
 
       std::vector<std::vector<double>> temp_infer_t(infer_t.size());
       if (i != (nb_chuncks - 1)) {
