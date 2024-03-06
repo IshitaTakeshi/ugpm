@@ -38,6 +38,7 @@ namespace ugpm
         public:
             RandomGenerator():random_eng_(std::random_device()())
             {
+              random_eng_.seed(3939);
             }
 
             double randUniform(double from, double to)
