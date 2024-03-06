@@ -79,7 +79,7 @@ struct ImuData {
       : t_offset(imu_data.t_offset), acc(imu_data.acc), gyr(imu_data.gyr),
         acc_var(imu_data.acc_var), gyr_var(imu_data.gyr_var){};
 
-  bool checkFrequency() {
+  bool checkFrequency() const {
     bool output = true;
     // Get min and max delta t for both the acc and gyr data
     double min_acc_dt = 1e10;
@@ -126,7 +126,7 @@ struct ImuData {
     return output;
   }
   // Return the collection of samples in between the two timestamps
-  ImuData get(double from, double to) {
+  ImuData get(const double from, const double to) const {
     // Check if the query interval makes sense
     if (from <= to) {
       ImuData output;
@@ -163,8 +163,8 @@ struct ImuData {
 
 private:
   // Return the collection of samples in between the two timestamps
-  std::vector<ImuSample> get(const std::vector<ImuSample> &samples, double from,
-                             double to) {
+  std::vector<ImuSample> get(const std::vector<ImuSample> &samples,
+                             const double from, const double to) const {
     std::vector<ImuSample> output;
     if (from >= to) {
       std::cout << "WARNING: Trying to get IMU data from a time range null or "

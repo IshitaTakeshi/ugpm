@@ -326,7 +326,7 @@ public:
 
 private:
   // Store a copy of the imu_data used
-  ImuData imu_data_;
+  const ImuData imu_data_;
 
   double start_t_;
   int start_index_;
@@ -736,7 +736,7 @@ private:
 class Se3Integrator {
 
 public:
-  Se3Integrator(ImuData &imu_data, const double start_time,
+  Se3Integrator(const ImuData &imu_data, const double start_time,
                 const PreintPrior bias_prior, const double window_duration,
                 const double state_freq = 50.0, const int nb_overlap = kOverlap,
                 const bool correlate = true)

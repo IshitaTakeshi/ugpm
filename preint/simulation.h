@@ -77,7 +77,7 @@ public:
     g_vect_ *= opt.g_cst;
 
     // Pick trajectory characteristics depending on the simulator's option
-    int number_sines = 3;
+    const int number_sines = 3;
     double vel_amplitude_min;
     double vel_amplitude_max;
     double vel_freq_min;
@@ -140,16 +140,16 @@ public:
     }
 
     // Create the simulated IMU measurements with the specified noise
-    int nb_samples = opt.imu_frequency * opt.dataset_length;
+    const int nb_samples = opt.imu_frequency * opt.dataset_length;
     imu_data_.acc.resize(nb_samples);
     imu_data_.gyr.resize(nb_samples);
     for (int i = 0; i < nb_samples; ++i) {
       double t = i * opt.dataset_length / nb_samples;
 
-      auto acc = stdToVec3(getAcc(t));
-      auto eul = getEul(t);
-      auto ang_vel = getAngVel(t);
-      Vec3 temp_acc = (eulToRotMat(getEul(t))).transpose() * (acc - g_vect_);
+      const auto acc = stdToVec3(getAcc(t));
+      const auto ang_vel = getAngVel(t);
+      const Vec3 temp_acc =
+          (eulToRotMat(getEul(t))).transpose() * (acc - g_vect_);
       for (int axis = 0; axis < 3; ++axis) {
         imu_data_.acc[i].t = t;
         imu_data_.acc[i].data[axis] =
