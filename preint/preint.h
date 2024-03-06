@@ -749,10 +749,11 @@ public:
       : hyper_(6), correlate_(correlate),
         state_freq_(std::clamp(state_freq, 5.0 / window_duration,
                                get_imu_frequency(imu_data.acc, imu_data.gyr))),
-        nb_overlap_(nb_overlap), start_t_(start_time) {
+        nb_overlap_(nb_overlap), start_t_(start_time),
+        nb_state_(std::ceil(window_duration * state_freq_) +
+                  (2 * nb_overlap_)) {
 
     // Create the state timeline
-    nb_state_ = std::ceil(window_duration * state_freq_) + (2 * nb_overlap_);
     state_time_.resize(nb_state_);
     double temp_start_infer_t =
         start_t_ - (((double)nb_overlap_) / state_freq_);
@@ -1160,9 +1161,10 @@ public:
 private:
   std::vector<GPSeHyper> hyper_;
   const bool correlate_;
-  double state_freq_;
+  const double state_freq_;
   const int nb_overlap_;
   const double start_t_;
+  const int nb_state_;
 
   MatX state_d_r_;
   MatX state_acc_;
@@ -1180,7 +1182,6 @@ private:
   std::vector<VecX> d_acc_dt_;
   int nb_gyr_;
   int nb_acc_;
-  int nb_state_;
   MatX gyr_data_;
   MatX acc_data_;
   VecX gyr_time_;
