@@ -31,6 +31,7 @@ inline Mat3 eulToRotMat(double eul_z, double eul_y, double eul_x) {
 
   return transform;
 }
+
 inline Mat3 eulToRotMat(std::vector<double> eul) {
   if (eul.size() != 3)
     throw std::range_error(
@@ -198,11 +199,9 @@ inline Mat9_3 jacobianExpMapZeroM(const Mat3 &M) {
 }
 
 inline Mat3_9 jacobianLogMap(const Mat3 &rot_mat) {
-
   Mat3_9 output;
-  double trace_mat = rot_mat.trace();
 
-  if (trace_mat < kLogTraceTolerance) {
+  if (rot_mat.trace() < kLogTraceTolerance) {
 
     // Equation from MATLAB symbolic toolbox (might have a better formualtion,
     // to inspect later)

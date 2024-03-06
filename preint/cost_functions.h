@@ -7,6 +7,9 @@
 
 namespace ugpm {
 
+using RowMajorMatrix =
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+
 class GpNormCostFunction : public ceres::CostFunction {
 private:
   MatX KK_inv_;
@@ -55,26 +58,24 @@ public:
   }
 };
 
-inline Mat3_6 JacobianRes(Vec3 rot_vec, Vec3 d_r) {
+inline Mat3_6 JacobianRes(const Vec3 &r, const Vec3 &d_r) {
   Mat3_6 output;
 
-  double r0_sq = rot_vec(0) * rot_vec(0);
-  double r1_sq = rot_vec(1) * rot_vec(1);
-  double r2_sq = rot_vec(2) * rot_vec(2);
-  double temp_r = (r0_sq + r1_sq + r2_sq);
-  double norm_r = std::sqrt(temp_r);
-  Vec3 r = rot_vec;
+  const double r0_sq = r(0) * r(0);
+  const double r1_sq = r(1) * r(1);
+  const double r2_sq = r(2) * r(2);
+  const double temp_r = r.squaredNorm();
+  const double norm_r = std::sqrt(temp_r);
 
   if (norm_r > kExpNormTolerance) {
-
-    double r0_cu = r(0) * r(0) * r(0);
-    double r1_cu = r(1) * r(1) * r(1);
-    double r2_cu = r(2) * r(2) * r(2);
-    double norm_r_2 = std::pow(temp_r, 2);
-    double norm_r_3 = std::pow(temp_r, 1.5);
-    double norm_r_5 = std::pow(temp_r, 2.5);
-    double s_r = std::sin(norm_r);
-    double c_r = std::cos(norm_r);
+    const double r0_cu = r(0) * r(0) * r(0);
+    const double r1_cu = r(1) * r(1) * r(1);
+    const double r2_cu = r(2) * r(2) * r(2);
+    const double norm_r_2 = std::pow(temp_r, 2);
+    const double norm_r_3 = std::pow(temp_r, 1.5);
+    const double norm_r_5 = std::pow(temp_r, 2.5);
+    const double s_r = std::sin(norm_r);
+    const double c_r = std::cos(norm_r);
 
     output(0, 0) =
         d_r(1) * ((r(0) * r(2) * s_r) / norm_r_3 -
@@ -301,9 +302,11 @@ public:
     weight_(1, 1) = std::sqrt(1.0 / gyr_var);
     weight_(2, 2) = std::sqrt(1.0 / gyr_var);
     for (int i = 0; i < 3; ++i) {
-      MatX ks_int = seKernelIntegral(start_t, ang_vel_time, state_time,
-                                     hyper[i].l2, hyper[i].sf2);
-      MatX ks = seKernel(ang_vel_time, state_time, hyper[i].l2, hyper[i].sf2);
+      const double l2 = hyper[i].l2;
+      const double sf2 = hyper[i].sf2;
+      const MatX ks_int =
+          seKernelIntegral(start_t, ang_vel_time, state_time, l2, sf2);
+      const MatX ks = seKernel(ang_vel_time, state_time, l2, sf2);
       K_s_K_inv_[i] = ks * K_inv[i];
       K_s_int_K_inv_[i] = ks_int * K_inv[i];
       mean_[i] = hyper[i].mean;
@@ -320,11 +323,6 @@ public:
   // Combined cost function for SO3 integration
   bool Evaluate(double const *const *parameters, double *residuals,
                 double **jacobians) const {
-    // Map the residuals out put to a Eigen matrix
-    Eigen::Map<
-        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
-        r(residuals, nb_data_, 3);
-
     // Read the state variables from ceres and infer the r and d_r
     MatX d_rot_d_t;
     d_rot_d_t.resize(nb_data_, 3);
@@ -339,8 +337,8 @@ public:
     MatX temp;
     temp.resize(nb_data_, 3);
     for (int i = 0; i < nb_data_; ++i) {
-      Vec3 rot_vec = rot.row(i).transpose() + (d_time_(i) * mean_);
-      Vec3 d_rot_vec = d_rot_d_t.row(i).transpose() + mean_;
+      const Vec3 rot_vec = rot.row(i).transpose() + (d_time_(i) * mean_);
+      const Vec3 d_rot_vec = d_rot_d_t.row(i).transpose() + mean_;
       temp.row(i) = (jacobianRighthandSO3(rot_vec) * (d_rot_vec)).transpose();
 
       if (jacobians != NULL) {
@@ -356,15 +354,16 @@ public:
             d_res_d_local.col(0) = d_res_d_rdr.col(axis);
             d_res_d_local.col(1) = d_res_d_rdr.col(axis + 3);
 
-            Eigen::Map<
-                Eigen::Matrix<double, 3, Eigen::Dynamic, Eigen::RowMajor>>
-                j_s(&(jacobians[axis][i * 3 * nb_state_]), 3, nb_state_);
+            Eigen::Map<RowMajorMatrix> j_s(
+                &(jacobians[axis][i * 3 * nb_state_]), 3, nb_state_);
             j_s = d_res_d_local * d_rdr_d_s;
           }
         }
       }
     }
 
+    // Map the residuals out put to a Eigen matrix
+    Eigen::Map<RowMajorMatrix> r(residuals, nb_data_, 3);
     r = temp - ang_vel_->transpose();
 
     return true;
@@ -402,12 +401,13 @@ public:
 
     for (int i = 0; i < 6; ++i) {
       if (i < 3) {
-        MatX ks_int = seKernelIntegral(start_t, acc_time, state_time,
-                                       hyper[i].l2, hyper[i].sf2);
+        const MatX ks_int = seKernelIntegral(start_t, acc_time, state_time,
+                                             hyper[i].l2, hyper[i].sf2);
         K_gyr_int_K_inv_[i] = ks_int * K_inv[i];
         mean_dr_[i] = hyper[i].mean;
       } else {
-        MatX ks = seKernel(acc_time, state_time, hyper[i].l2, hyper[i].sf2);
+        const MatX ks =
+            seKernel(acc_time, state_time, hyper[i].l2, hyper[i].sf2);
         K_acc_K_inv_[i - 3] = ks * K_inv[i];
         mean_acc_[i - 3] = hyper[i].mean;
       }
@@ -427,11 +427,6 @@ public:
   // Combined cost function for SO3 integration
   bool Evaluate(double const *const *parameters, double *residuals,
                 double **jacobians) const {
-    // Map the residuals out put to a Eigen matrix
-    Eigen::Map<
-        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
-        r(residuals, nb_data_, 3);
-
     // Read the state variables from ceres and infer the r and d_r
     MatX rot;
     rot.resize(nb_data_, 3);
@@ -450,9 +445,9 @@ public:
     MatX temp;
     temp.resize(nb_data_, 3);
     for (int i = 0; i < nb_data_; ++i) {
-      Vec3 rot_vec = rot.row(i).transpose() + (d_time_(i) * mean_dr_);
-      Mat3 R_T = expMap(-rot_vec);
-      Vec3 acc_vec = acc.row(i).transpose() + mean_acc_;
+      const Vec3 rot_vec = rot.row(i).transpose() + (d_time_(i) * mean_dr_);
+      const Mat3 R_T = expMap(-rot_vec);
+      const Vec3 acc_vec = acc.row(i).transpose() + mean_acc_;
       temp.row(i) = (R_T * acc_vec).transpose();
 
       if (jacobians != NULL) {
@@ -464,23 +459,23 @@ public:
         }
         for (int axis = 0; axis < 3; ++axis) {
           if (jacobians[axis] != NULL) {
-            Eigen::Map<
-                Eigen::Matrix<double, 3, Eigen::Dynamic, Eigen::RowMajor>>
-                j_s(&(jacobians[axis][i * 3 * nb_state_]), 3, nb_state_);
+            Eigen::Map<RowMajorMatrix> j_s(
+                &(jacobians[axis][i * 3 * nb_state_]), 3, nb_state_);
             j_s = weight_ * d_res_d_r.col(axis) *
                   K_gyr_int_K_inv_.at(axis).row(i);
           }
 
           if (jacobians[3 + axis] != NULL) {
-            Eigen::Map<
-                Eigen::Matrix<double, 3, Eigen::Dynamic, Eigen::RowMajor>>
-                j_s(&(jacobians[3 + axis][i * 3 * nb_state_]), 3, nb_state_);
+            Eigen::Map<RowMajorMatrix> j_s(
+                &(jacobians[3 + axis][i * 3 * nb_state_]), 3, nb_state_);
             j_s = weight_ * R_T.col(axis) * K_acc_K_inv_.at(axis).row(i);
           }
         }
       }
     }
 
+    // Map the residuals out put to a Eigen matrix
+    Eigen::Map<RowMajorMatrix> r(residuals, nb_data_, 3);
     r = (temp - acc_->transpose()) * weight_;
 
     return true;
