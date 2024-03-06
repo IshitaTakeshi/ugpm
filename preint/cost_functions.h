@@ -12,21 +12,19 @@ using RowMajorMatrix =
 
 class GpNormCostFunction : public ceres::CostFunction {
 private:
-  MatX KK_inv_;
-  int nb_data_;
+  const MatX KK_inv_;
+  const int nb_data_;
   VecX weight_;
   MatX jacobian_;
 
 public:
-  GpNormCostFunction(const MatX &KK_inv, const VecX &var) : KK_inv_(KK_inv) {
-    nb_data_ = KK_inv_.cols();
-    weight_.resize(nb_data_);
+  GpNormCostFunction(const MatX &KK_inv, const VecX &var)
+      : KK_inv_(KK_inv), nb_data_(KK_inv_.cols()) {
     weight_ = (var.array().inverse().sqrt()).matrix();
     set_num_residuals(nb_data_);
     std::vector<int> *block_sizes = mutable_parameter_block_sizes();
     block_sizes->push_back(nb_data_);
 
-    jacobian_.resize(nb_data_, nb_data_);
     jacobian_ = KK_inv - MatX::Identity(nb_data_, nb_data_);
     for (int i = 0; i < nb_data_; ++i) {
       if (std::isnan(weight_[i]))
@@ -39,13 +37,10 @@ public:
   bool Evaluate(double const *const *parameters, double *residuals,
                 double **jacobians) const {
     Eigen::Map<const VecX> s(&(parameters[0][0]), nb_data_, 1);
+
+    const VecX d_rot_d_t = KK_inv_ * s;
+
     Eigen::Map<VecX> r(residuals, nb_data_, 1);
-
-    VecX d_rot_d_t;
-    d_rot_d_t.resize(nb_data_, 1);
-
-    d_rot_d_t = KK_inv_ * s;
-
     r = (((d_rot_d_t - s).array()) * (weight_.array())).matrix();
 
     if (jacobians != NULL) {
@@ -275,28 +270,23 @@ inline Mat3_6 JacobianRes(const Vec3 &r, const Vec3 &d_r) {
 
 class RotCostFunction : public ceres::CostFunction {
 private:
-  MatX *ang_vel_;
+  const MatX *ang_vel_;
   std::vector<MatX> K_s_K_inv_;
   std::vector<MatX> K_s_int_K_inv_;
-  VecX d_time_;
   Vec3 mean_;
-  int nb_data_;
-  int nb_state_;
+  const int nb_data_;
+  const int nb_state_;
   Mat3 weight_;
+  const VecX d_time_;
 
 public:
   RotCostFunction(MatX *ang_vel, const VecX &ang_vel_time,
                   const VecX &state_time, const std::vector<MatX> &K_inv,
                   const double start_t, const std::vector<GPSeHyper> &hyper,
                   const double gyr_var)
-      : ang_vel_(ang_vel) {
-    K_s_K_inv_.resize(3);
-    K_s_int_K_inv_.resize(3);
-
-    nb_data_ = ang_vel_time.rows();
-    d_time_.resize(nb_data_);
-    d_time_ = (ang_vel_time.array() - start_t).matrix();
-
+      : ang_vel_(ang_vel), K_s_K_inv_(3), K_s_int_K_inv_(3),
+        nb_data_(ang_vel_time.rows()), nb_state_(state_time.rows()),
+        d_time_((ang_vel_time.array() - start_t).matrix()) {
     weight_ = Mat3::Zero();
     weight_(0, 0) = std::sqrt(1.0 / gyr_var);
     weight_(1, 1) = std::sqrt(1.0 / gyr_var);
@@ -314,7 +304,6 @@ public:
 
     set_num_residuals(3 * nb_data_);
     std::vector<int> *block_sizes = mutable_parameter_block_sizes();
-    nb_state_ = state_time.rows();
     block_sizes->push_back(nb_state_);
     block_sizes->push_back(nb_state_);
     block_sizes->push_back(nb_state_);
@@ -324,18 +313,15 @@ public:
   bool Evaluate(double const *const *parameters, double *residuals,
                 double **jacobians) const {
     // Read the state variables from ceres and infer the r and d_r
-    MatX d_rot_d_t;
-    d_rot_d_t.resize(nb_data_, 3);
-    MatX rot;
-    rot.resize(nb_data_, 3);
+    MatX d_rot_d_t(nb_data_, 3);
+    MatX rot(nb_data_, 3);
     for (int i = 0; i < 3; ++i) {
       Eigen::Map<const VecX> s_col(&(parameters[i][0]), nb_state_, 1);
       d_rot_d_t.col(i) = K_s_K_inv_.at(i) * s_col;
       rot.col(i) = K_s_int_K_inv_.at(i) * s_col;
     }
 
-    MatX temp;
-    temp.resize(nb_data_, 3);
+    MatX temp(nb_data_, 3);
     for (int i = 0; i < nb_data_; ++i) {
       const Vec3 rot_vec = rot.row(i).transpose() + (d_time_(i) * mean_);
       const Vec3 d_rot_vec = d_rot_d_t.row(i).transpose() + mean_;
@@ -372,32 +358,24 @@ public:
 
 class AccCostFunction : public ceres::CostFunction {
 private:
-  MatX *acc_;
+  const MatX *acc_;
   std::vector<MatX> K_acc_K_inv_;
   std::vector<MatX> K_gyr_int_K_inv_;
-  VecX d_time_;
+  const int nb_data_;
+  const int nb_state_;
+  const Mat3 weight_;
+  const VecX d_time_;
   Vec3 mean_acc_;
   Vec3 mean_dr_;
-  int nb_data_;
-  int nb_state_;
-  Mat3 weight_;
 
 public:
-  AccCostFunction(MatX *acc, const VecX &acc_time, const VecX &state_time,
+  AccCostFunction(const MatX *acc, const VecX &acc_time, const VecX &state_time,
                   const std::vector<MatX> &K_inv, const double start_t,
                   const std::vector<GPSeHyper> &hyper, const double acc_var)
-      : acc_(acc) {
-    K_acc_K_inv_.resize(3);
-    K_gyr_int_K_inv_.resize(3);
-
-    nb_data_ = acc_time.rows();
-    d_time_.resize(nb_data_);
-    d_time_ = (acc_time.array() - start_t).matrix();
-
-    weight_ = Mat3::Zero();
-    weight_(0, 0) = std::sqrt(1.0 / acc_var);
-    weight_(1, 1) = std::sqrt(1.0 / acc_var);
-    weight_(2, 2) = std::sqrt(1.0 / acc_var);
+      : acc_(acc), K_acc_K_inv_(3), K_gyr_int_K_inv_(3),
+        nb_data_(acc_time.rows()), nb_state_(state_time.rows()),
+        weight_((Vec3::Ones() * std::sqrt(1.0 / acc_var)).asDiagonal()),
+        d_time_((acc_time.array() - start_t).matrix()) {
 
     for (int i = 0; i < 6; ++i) {
       const double l2 = hyper[i].l2;
@@ -416,7 +394,6 @@ public:
 
     set_num_residuals(3 * nb_data_);
     std::vector<int> *block_sizes = mutable_parameter_block_sizes();
-    nb_state_ = state_time.rows();
     block_sizes->push_back(nb_state_);
     block_sizes->push_back(nb_state_);
     block_sizes->push_back(nb_state_);
@@ -429,10 +406,8 @@ public:
   bool Evaluate(double const *const *parameters, double *residuals,
                 double **jacobians) const {
     // Read the state variables from ceres and infer the r and d_r
-    MatX rot;
-    rot.resize(nb_data_, 3);
-    MatX acc;
-    acc.resize(nb_data_, 3);
+    MatX rot(nb_data_, 3);
+    MatX acc(nb_data_, 3);
     for (int i = 0; i < 6; ++i) {
       if (i < 3) {
         Eigen::Map<const VecX> dr_col(&(parameters[i][0]), nb_state_);
@@ -443,8 +418,7 @@ public:
       }
     }
 
-    MatX temp;
-    temp.resize(nb_data_, 3);
+    MatX temp(nb_data_, 3);
     for (int i = 0; i < nb_data_; ++i) {
       const Vec3 rot_vec = rot.row(i).transpose() + (d_time_(i) * mean_dr_);
       const Mat3 R_T = expMap(-rot_vec);
@@ -453,8 +427,8 @@ public:
 
       if (jacobians != NULL) {
         Mat3 d_res_d_r;
-        if ((jacobians[0] != NULL) || (jacobians[1] != NULL) ||
-            (jacobians[2] != NULL)) {
+        if (jacobians[0] != NULL || jacobians[1] != NULL ||
+            jacobians[2] != NULL) {
           d_res_d_r = toSkewSymMat(temp.row(i).transpose()) *
                       jacobianRighthandSO3(rot_vec);
         }
