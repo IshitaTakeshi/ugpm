@@ -879,7 +879,6 @@ public:
     // enough that doing it before or after optimisation does not really change
     // the results)
     if (correlate) {
-      state_cor_.resize(6 * nb_state_, 6 * nb_state_);
       MatX state_J(3 * nb_gyr + 3 * nb_acc, 6 * nb_state_);
       state_J.setZero();
       RowMajorMatrix temp_J_0_r(3 * nb_gyr, nb_state_);
@@ -933,8 +932,7 @@ public:
           temp_J_5;
 
       // Launch the correlation computation in a separate thread
-      state_cor_thread_ = std::shared_ptr<std::thread>(new std::thread(
-          &Se3Integrator::computeStateCorr, this, state_J, state_std));
+      state_cor_ = computeStateCorr(state_J, state_std);
     }
 
     // Solve the optimisation problem
@@ -1041,10 +1039,6 @@ public:
       (d_acc_dt_[1])[i] = d_acc_d_t(1);
       (d_acc_dt_[2])[i] = d_acc_d_t(2);
     }
-
-    if (correlate) {
-      state_cor_thread_->join();
-    }
   }
 
   // Method for inference
@@ -1148,9 +1142,7 @@ public:
     preint.d_delta_p_d_bf = d_p_df;
 
     if (correlate_) {
-      state_cor_mutex_.lock();
       preint.cov = state_ks * (state_cor_) * (state_ks.transpose());
-      state_cor_mutex_.unlock();
     } else {
       preint.cov =
           state_ks * (state_var_.asDiagonal()) * (state_ks.transpose());
@@ -1196,12 +1188,8 @@ private:
   VecX gyr_time_;
   VecX acc_time_;
   VecX state_time_;
-  MatX state_cov_;
   MatX state_cor_;
   VecX state_var_;
-
-  std::mutex state_cor_mutex_;
-  std::shared_ptr<std::thread> state_cor_thread_;
 
   std::vector<VecX> alpha_;
   std::vector<MatX> KK_inv_;
@@ -1513,22 +1501,17 @@ private:
     }
   }
 
-  void computeStateCorr(const MatX &state_J, const VecX &state_std) {
-    state_cor_mutex_.lock();
-    state_cor_ = state_J.transpose() * state_J;
-    Eigen::LLT<MatX> cor_llt(
-        state_cor_ + 0.00001 * MatX::Identity(6 * nb_state_, 6 * nb_state_));
-    MatX L_cor = cor_llt.matrixL();
-    state_cor_ = L_cor.triangularView<Eigen::Lower>().transpose().solve(
-        L_cor.triangularView<Eigen::Lower>().solve(
-            MatX::Identity(6 * nb_state_, 6 * nb_state_)));
-
-    VecX d_inv_cor = state_cor_.diagonal().array().sqrt().inverse();
-    VecX temp_d_cor = state_std.array() * (d_inv_cor.array());
-    state_cor_ =
-        temp_d_cor.asDiagonal() * state_cor_ * (temp_d_cor.asDiagonal());
-
-    state_cor_mutex_.unlock();
+  MatX computeStateCorr(const MatX &state_J, const VecX &state_std) {
+    const MatX I = MatX::Identity(6 * nb_state_, 6 * nb_state_);
+    const MatX JTJ = state_J.transpose() * state_J;
+    const Eigen::LLT<MatX> cor_llt(JTJ + 0.00001 * I);
+    const MatX L_cor = cor_llt.matrixL();
+    const MatX correlation =
+        L_cor.triangularView<Eigen::Lower>().transpose().solve(
+            L_cor.triangularView<Eigen::Lower>().solve(I));
+    const VecX d_inv_cor = correlation.diagonal().array().sqrt().inverse();
+    const VecX temp_d_cor = state_std.array() * (d_inv_cor.array());
+    return temp_d_cor.asDiagonal() * correlation * (temp_d_cor.asDiagonal());
   }
 };
 
