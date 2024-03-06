@@ -17,6 +17,10 @@ const double kNumGyrBiasJacobianDelta = 0.0001;
 const double kSqrt2 = std::sqrt(2.0);
 const double kSqrtPi = std::sqrt(M_PI);
 
+inline std::vector<double> to_std_vector(const VecX &v) {
+  return std::vector<double>(v.data(), v.data() + v.size());
+}
+
 inline Mat3 eulToRotMat(double eul_z, double eul_y, double eul_x) {
 
   Mat3 transform;

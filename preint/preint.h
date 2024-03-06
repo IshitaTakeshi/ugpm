@@ -793,11 +793,8 @@ public:
     }
 
     // Get prior about the preintegrated measurements from LPM preintegration
-    const std::vector<double> t_vect(state_time_.data(),
-                                     state_time_.data() + state_time_.size());
-    initialiseStateWithLPM(temp_imu_data, t_vect, t_vect_dt, bias_prior);
-
-    initialiseStateDiff(temp_imu_data, t_vect, t_vect_dt);
+    initialiseStateWithLPM(temp_imu_data, bias_prior);
+    initialiseStateDiff(temp_imu_data);
 
     // Initialise the hyper parameters and substract the mean to the state
     initialiseHyperParam(temp_imu_data);
@@ -1206,17 +1203,19 @@ private:
   std::vector<MatX> K_int_K_inv_;
 
   void initialiseStateWithLPM(const ImuData &imu_data,
-                              const std::vector<double> &t_vect,
-                              const std::vector<double> &t_vect_dt,
                               PreintPrior bias_prior = PreintPrior()) {
     PreintOption preint_opt;
     preint_opt.min_freq = 500;
     preint_opt.type = LPM;
+
+    const VecX state_time_dt = state_time_.array() + kNumDtJacobianDelta;
+
     std::vector<std::vector<double>> t;
-    t.push_back(t_vect);
-    t.push_back(t_vect_dt);
+    t.push_back(to_std_vector(state_time_));
+    t.push_back(to_std_vector(state_time_dt));
     t.push_back(std::vector<double>{start_t_});
-    ImuPreintegration preint(imu_data, t_vect[0], t, preint_opt, bias_prior);
+    ImuPreintegration preint(imu_data, state_time_[0], t, preint_opt,
+                             bias_prior);
 
     state_d_r_.resize(nb_state_, 3);
     state_acc_.resize(nb_state_, 3);
@@ -1279,10 +1278,7 @@ private:
       state_r_temp_.col(i) = prev[0];
     }
   }
-  void initialiseStateDiff(const ImuData &imu_data,
-                           const std::vector<double> &t_vect,
-                           const std::vector<double> &t_vect_dt) {
-
+  void initialiseStateDiff(const ImuData &imu_data) {
     // Prepare for the timeshift diff
     {
       ImuData temp_imu_data = imu_data;
@@ -1297,12 +1293,16 @@ private:
       PreintOption preint_opt;
       preint_opt.min_freq = 500;
       preint_opt.type = LPM;
+
+      const VecX state_time_dt = state_time_.array() + kNumDtJacobianDelta;
+
       std::vector<std::vector<double>> t;
-      t.push_back(t_vect);
-      t.push_back(t_vect_dt);
+      t.push_back(to_std_vector(state_time_));
+      t.push_back(to_std_vector(state_time_dt));
       t.push_back(std::vector<double>{start_t_});
+
       PreintPrior bias_prior;
-      ImuPreintegration preint(temp_imu_data, t_vect[0], t, preint_opt,
+      ImuPreintegration preint(temp_imu_data, state_time_[0], t, preint_opt,
                                bias_prior);
       Eigen::Matrix3d start_R = preint.get(2, 0).delta_R;
 
@@ -1363,12 +1363,14 @@ private:
         PreintOption preint_opt;
         preint_opt.min_freq = 500;
         preint_opt.type = LPM;
+
+        const VecX state_time_dt = state_time_.array() + kNumDtJacobianDelta;
         std::vector<std::vector<double>> t;
-        t.push_back(t_vect);
-        t.push_back(t_vect_dt);
+        t.push_back(to_std_vector(state_time_));
+        t.push_back(to_std_vector(state_time_dt));
         t.push_back(std::vector<double>(1, start_t_));
         PreintPrior bias_prior;
-        IterativeIntegrator preint(temp_imu_data, t_vect[0], bias_prior, t,
+        IterativeIntegrator preint(temp_imu_data, state_time_[0], bias_prior, t,
                                    500.0, true, true);
         Eigen::Matrix3d start_R = preint.get(2, 0).delta_R;
 
