@@ -1505,10 +1505,10 @@ private:
     const MatX I = MatX::Identity(6 * nb_state_, 6 * nb_state_);
     const MatX JTJ = state_J.transpose() * state_J;
     const Eigen::LLT<MatX> cor_llt(JTJ + 0.00001 * I);
-    const MatX L_cor = cor_llt.matrixL();
-    const MatX correlation =
-        L_cor.triangularView<Eigen::Lower>().transpose().solve(
-            L_cor.triangularView<Eigen::Lower>().solve(I));
+    MatX L_cor = cor_llt.matrixL();
+    Eigen::TriangularView<MatX, Eigen::Lower> L =
+        L_cor.triangularView<Eigen::Lower>();
+    const MatX correlation = L.transpose().solve(L.solve(I));
     const VecX d_inv_cor = correlation.diagonal().array().sqrt().inverse();
     const VecX temp_d_cor = state_std.array() * (d_inv_cor.array());
     return temp_d_cor.asDiagonal() * correlation * (temp_d_cor.asDiagonal());

@@ -55,43 +55,42 @@ inline Mat3 expMap(const Vec3 &vec) {
   return rot_axis.toRotationMatrix();
 }
 
+Mat3 skew(const Vec3 &v) {
+  Mat3 m;
+  // clang-format off
+  m <<
+    0.0, -v(2), v(1),
+    v(2), 0.0, -v(0),
+    -v(1), v(0), 0.0;
+  // clang-format on
+  return m;
+}
+
 // Righthand Jacobian of SO3 Exp mapping
 inline Mat3 jacobianRighthandSO3(const Vec3 &rot_vec) {
-  Mat3 output = Mat3::Identity();
-  double vec_norm = rot_vec.norm();
+  const double k = rot_vec.norm();
+  const Mat3 I = Mat3::Identity();
+  if (k > kExpNormTolerance) {
+    const Mat3 M = skew(rot_vec);
+    const double sin = std::sin(k);
+    const double cos = std::cos(k);
 
-  Vec3 vec = rot_vec;
-
-  if (vec_norm > kExpNormTolerance) {
-    Mat3 skew_mat;
-    skew_mat << 0.0, -vec(2), vec(1), vec(2), 0.0, -vec(0), -vec(1), vec(0),
-        0.0;
-
-    output += ((vec_norm - sin(vec_norm)) / (vec_norm * vec_norm * vec_norm)) *
-                  skew_mat * skew_mat -
-              ((1.0 - cos(vec_norm)) / (vec_norm * vec_norm)) * skew_mat;
+    return I + (k - sin) / (k * k * k) * M * M - (1.0 - cos) / (k * k) * M;
   }
-  return output;
+  return I;
 }
 
 // Inverse Righthand Jacobian of SO3 Exp mapping
-inline Mat3 inverseJacobianRighthandSO3(Vec3 rot_vec) {
-  Mat3 output = Mat3::Identity();
-  double vec_norm = rot_vec.norm();
-
-  Vec3 vec = rot_vec;
-  if (vec_norm > kExpNormTolerance) {
-    Mat3 skew_mat;
-    skew_mat << 0.0, -vec(2), vec(1), vec(2), 0.0, -vec(0), -vec(1), vec(0),
-        0.0;
-
-    output +=
-        0.5 * skew_mat +
-        (((1.0 / (vec_norm * vec_norm)) -
-          ((1 + std::cos(vec_norm)) / (2.0 * vec_norm * std::sin(vec_norm)))) *
-         skew_mat * skew_mat);
+inline Mat3 inverseJacobianRighthandSO3(const Vec3 &rot_vec) {
+  const Mat3 I = Mat3::Identity();
+  const double k = rot_vec.norm();
+  if (k > kExpNormTolerance) {
+    const Mat3 M = skew(rot_vec);
+    const double sin = std::sin(k);
+    const double cos = std::cos(k);
+    return I + 0.5 * M + (1.0 / (k * k) - (1 + cos) / (2.0 * k * sin)) * M * M;
   }
-  return output;
+  return I;
 }
 
 inline MatX seKernel(const VecX &x1, const VecX &x2, const double l2,
