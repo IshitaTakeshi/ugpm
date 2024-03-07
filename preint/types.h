@@ -128,21 +128,19 @@ struct ImuData {
   // Return the collection of samples in between the two timestamps
   ImuData get(const double from, const double to) const {
     // Check if the query interval makes sense
-    if (from <= to) {
-      ImuData output;
-
-      output.t_offset = t_offset;
-      output.acc_var = acc_var;
-      output.gyr_var = gyr_var;
-      output.acc = get(acc, from, to);
-      output.gyr = get(gyr, from, to);
-      return output;
-    }
     // If the query inteval does not make sense throw an exception
-    else {
+    if (from > to) {
       throw std::invalid_argument(
           "The argument of ImuData::Get are not consistent");
     }
+    ImuData output;
+
+    output.t_offset = t_offset;
+    output.acc_var = acc_var;
+    output.gyr_var = gyr_var;
+    output.acc = get(acc, from, to);
+    output.gyr = get(gyr, from, to);
+    return output;
   }
 
   void print() {

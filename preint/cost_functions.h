@@ -261,7 +261,7 @@ inline Mat3_6 JacobianRes(const Vec3 &r, const Vec3 &d_r) {
     output(2, 5) = (r0_sq * (s_r - norm_r)) / norm_r_3 +
                    (r1_sq * (s_r - norm_r)) / norm_r_3 + 1.0;
   } else {
-    output.block<3, 3>(0, 0) = 0.5 * toSkewSymMat(d_r);
+    output.block<3, 3>(0, 0) = 0.5 * skew(d_r);
     output.block<3, 3>(0, 3) = Mat3::Identity();
   }
 
@@ -429,8 +429,9 @@ public:
         Mat3 d_res_d_r;
         if (jacobians[0] != NULL || jacobians[1] != NULL ||
             jacobians[2] != NULL) {
-          d_res_d_r = toSkewSymMat(temp.row(i).transpose()) *
-                      jacobianRighthandSO3(rot_vec);
+          const Mat3 K = skew(temp.row(i).transpose());
+          const Mat3 J = jacobianRighthandSO3(rot_vec);
+          d_res_d_r = K * J;
         }
         for (int axis = 0; axis < 3; ++axis) {
           if (jacobians[axis] != NULL) {

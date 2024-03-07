@@ -766,11 +766,6 @@ public:
         nb_state_(std::ceil(window_duration * state_freq_) + (2 * nb_overlap_)),
         state_time_(
             calc_state_time(start_t_, nb_state_, nb_overlap_, state_freq_)) {
-    std::vector<double> t_vect_dt(nb_state_);
-    for (int i = 0; i < nb_state_; ++i) {
-      t_vect_dt[i] = state_time_(i) + kNumDtJacobianDelta;
-    }
-
     const auto temp_imu_data =
         imu_data.get(state_time_(0), state_time_(state_time_.size() - 1));
     const size_t nb_gyr = temp_imu_data.gyr.size();
@@ -873,8 +868,6 @@ public:
     // enough that doing it before or after optimisation does not really change
     // the results)
     if (correlate) {
-      MatX state_J(3 * nb_gyr + 3 * nb_acc, 6 * nb_state_);
-      state_J.setZero();
       RowMajorMatrix temp_J_0_r(3 * nb_gyr, nb_state_);
       RowMajorMatrix temp_J_1_r(3 * nb_gyr, nb_state_);
       RowMajorMatrix temp_J_2_r(3 * nb_gyr, nb_state_);
@@ -888,6 +881,9 @@ public:
       jacobian.push_back(temp_J_2_r.data());
       VecX temp_res_r(3 * nb_gyr);
       rot_cost_fun->Evaluate(param.data(), temp_res_r.data(), jacobian.data());
+
+      MatX state_J(3 * nb_gyr + 3 * nb_acc, 6 * nb_state_);
+      state_J.setZero();
       state_J.block(0, 0, 3 * nb_gyr, nb_state_) = temp_J_0_r;
       state_J.block(0, nb_state_, 3 * nb_gyr, nb_state_) = temp_J_1_r;
       state_J.block(0, 2 * nb_state_, 3 * nb_gyr, nb_state_) = temp_J_2_r;
@@ -914,6 +910,7 @@ public:
       jacobian.push_back(temp_J_5.data());
       VecX temp_res(3 * nb_acc);
       acc_cost_fun->Evaluate(param.data(), temp_res.data(), jacobian.data());
+
       state_J.block(3 * nb_gyr, 0, 3 * nb_acc, nb_state_) = temp_J_0;
       state_J.block(3 * nb_gyr, nb_state_, 3 * nb_acc, nb_state_) = temp_J_1;
       state_J.block(3 * nb_gyr, 2 * nb_state_, 3 * nb_acc, nb_state_) =
@@ -996,12 +993,13 @@ public:
     VecX temp_t(1);
     temp_t[0] = start_t_ + kNumDtJacobianDelta;
     for (int i = 0; i < 3; ++i) {
-      start_r_dt[i] = (seKernelIntegral(start_t_, temp_t, state_time_,
-                                        hyper_[i].l2, hyper_[i].sf2) *
-                       alpha_[i])(0, 0) +
-                      kNumDtJacobianDelta * hyper_[i].mean;
+      const double l2 = hyper_[i].l2;
+      const double sf2 = hyper_[i].sf2;
+      const MatX K = seKernelIntegral(start_t_, temp_t, state_time_, l2, sf2);
+      start_r_dt[i] =
+          (K * alpha_[i])(0, 0) + kNumDtJacobianDelta * hyper_[i].mean;
     }
-    Mat3 delta_R_dt_start = expMap(start_r_dt);
+    const Mat3 delta_R_dt_start = expMap(start_r_dt);
 
     Vec3 mean_acc(hyper_[3].mean, hyper_[4].mean, hyper_[5].mean);
 
@@ -1016,9 +1014,9 @@ public:
       temp_d_r_bw.row(1) = d_state_r_bw[1].row(i);
       temp_d_r_bw.row(2) = d_state_r_bw[2].row(i);
 
-      Mat3 temp_d_acc_bw =
-          -toSkewSymMat(state_acc_.row(i).transpose() + mean_acc) *
-          jacobianRighthandSO3(-state_r.row(i)) * temp_d_r_bw;
+      const Mat3 K = skew(state_acc_.row(i).transpose() + mean_acc);
+      const Mat3 J = jacobianRighthandSO3(-state_r.row(i));
+      const Mat3 temp_d_acc_bw = -K * J * temp_d_r_bw;
 
       d_acc_bw_[0].row(i) = temp_d_acc_bw.row(0);
       d_acc_bw_[1].row(i) = temp_d_acc_bw.row(1);

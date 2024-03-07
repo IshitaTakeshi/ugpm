@@ -175,13 +175,6 @@ inline MatX seKernelIntegral2Dt(const double a, const VecX &b, const VecX &x2,
   return A;
 }
 
-inline Mat3 toSkewSymMat(const Vec3 &rot_vec) {
-  Mat3 skew_mat;
-  skew_mat << 0.0, -rot_vec(2), rot_vec(1), rot_vec(2), 0.0, -rot_vec(0),
-      -rot_vec(1), rot_vec(0), 0.0;
-  return skew_mat;
-}
-
 inline Row9 mat3ToRow(Mat3 R) {
   Row9 output;
   output = Eigen::Map<Row9>(R.data());
