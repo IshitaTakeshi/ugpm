@@ -420,15 +420,13 @@ public:
                       const std::vector<std::vector<double>> &time,
                       const double min_freq = 500, const bool bare = false,
                       const bool rot_only = false)
-      : gyr_var_(imu_data.gyr_var), acc_var_(imu_data.acc_var) {
-    start_t_ = start_time;
-    bare_ = bare;
+      : gyr_var_(imu_data.gyr_var), acc_var_(imu_data.acc_var),
+        nb_gyr_(imu_data.gyr.size()), nb_acc_(imu_data.acc.size()),
+        start_t_(start_time), bare_(bare) {
 
     const size_t nb_infer_vec = time.size();
 
     // Fill the private structures and other variables
-    nb_gyr_ = imu_data.gyr.size();
-    nb_acc_ = imu_data.acc.size();
     gyr_data_.resize(3, nb_gyr_);
     acc_data_.resize(3, nb_acc_);
     gyr_time_.resize(nb_gyr_);
@@ -478,7 +476,7 @@ public:
       t = SortIndexTracker2<double>(infer_t);
     }
 
-    start_index_ = t.getIndex(nb_infer_vec, 0);
+    const int start_index_ = t.getIndex(nb_infer_vec, 0);
 
     // Vector of flag of timestamp interest to later prevent unnecessary
     // computations
@@ -542,16 +540,14 @@ public:
   }
 
 private:
-  double start_t_;
   std::vector<std::vector<PreintMeas>> preint_;
-  bool bare_;
 
-  int start_index_;
-
-  size_t nb_gyr_;
-  size_t nb_acc_;
-  double gyr_var_;
-  double acc_var_;
+  const double gyr_var_;
+  const double acc_var_;
+  const size_t nb_gyr_;
+  const size_t nb_acc_;
+  const double start_t_;
+  const bool bare_;
   Eigen::MatrixXd gyr_data_;
   Eigen::MatrixXd acc_data_;
   Eigen::VectorXd gyr_time_;

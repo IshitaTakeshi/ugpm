@@ -408,14 +408,15 @@ public:
     // Read the state variables from ceres and infer the r and d_r
     MatX rot(nb_data_, 3);
     MatX acc(nb_data_, 3);
-    for (int i = 0; i < 6; ++i) {
-      if (i < 3) {
-        Eigen::Map<const VecX> dr_col(&(parameters[i][0]), nb_state_);
-        rot.col(i) = K_gyr_int_K_inv_.at(i) * dr_col;
-      } else {
-        Eigen::Map<const VecX> acc_col(&(parameters[i][0]), nb_state_);
-        acc.col(i - 3) = K_acc_K_inv_.at(i - 3) * acc_col;
-      }
+
+    for (int i = 0; i < 3; ++i) {
+      Eigen::Map<const VecX> dr_col(&(parameters[i][0]), nb_state_);
+      rot.col(i) = K_gyr_int_K_inv_.at(i) * dr_col;
+    }
+
+    for (int i = 0; i < 3; ++i) {
+      Eigen::Map<const VecX> acc_col(&(parameters[i + 3][0]), nb_state_);
+      acc.col(i) = K_acc_K_inv_.at(i) * acc_col;
     }
 
     MatX temp(nb_data_, 3);
@@ -425,28 +426,29 @@ public:
       const Vec3 acc_vec = acc.row(i).transpose() + mean_acc_;
       temp.row(i) = (R_T * acc_vec).transpose();
 
-      if (jacobians != NULL) {
-        Mat3 d_res_d_r;
-        if (jacobians[0] != NULL || jacobians[1] != NULL ||
-            jacobians[2] != NULL) {
-          const Mat3 K = skew(temp.row(i).transpose());
-          const Mat3 J = jacobianRighthandSO3(rot_vec);
-          d_res_d_r = K * J;
-        }
-        for (int axis = 0; axis < 3; ++axis) {
-          if (jacobians[axis] != NULL) {
-            Eigen::Map<RowMajorMatrix> j_s(
-                &(jacobians[axis][i * 3 * nb_state_]), 3, nb_state_);
-            j_s = weight_ * d_res_d_r.col(axis) *
-                  K_gyr_int_K_inv_.at(axis).row(i);
-          }
+      if (jacobians == NULL) {
+        continue;
+      }
+      const Mat3 K = skew(temp.row(i).transpose());
+      const Mat3 J = jacobianRighthandSO3(rot_vec);
+      const Mat3 d_res_d_r = K * J;
 
-          if (jacobians[3 + axis] != NULL) {
-            Eigen::Map<RowMajorMatrix> j_s(
-                &(jacobians[3 + axis][i * 3 * nb_state_]), 3, nb_state_);
-            j_s = weight_ * R_T.col(axis) * K_acc_K_inv_.at(axis).row(i);
-          }
+      for (int axis = 0; axis < 3; ++axis) {
+        if (jacobians[axis] == NULL) {
+          continue;
         }
+        Eigen::Map<RowMajorMatrix> j_s(&(jacobians[axis][i * 3 * nb_state_]), 3,
+                                       nb_state_);
+        j_s = weight_ * d_res_d_r.col(axis) * K_gyr_int_K_inv_.at(axis).row(i);
+      }
+
+      for (int axis = 0; axis < 3; ++axis) {
+        if (jacobians[3 + axis] == NULL) {
+          continue;
+        }
+        Eigen::Map<RowMajorMatrix> j_s(
+            &(jacobians[3 + axis][i * 3 * nb_state_]), 3, nb_state_);
+        j_s = weight_ * R_T.col(axis) * K_acc_K_inv_.at(axis).row(i);
       }
     }
 
