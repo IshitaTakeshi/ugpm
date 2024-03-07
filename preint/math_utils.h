@@ -740,67 +740,62 @@ inline Vec3 propagateJacobianRR(const Mat3 &R1, const Vec3 &d_r1,
   return output;
 }
 
-inline PreintMeas combinePreints(const PreintMeas &prev_preint,
+inline PreintMeas combinePreints(const PreintMeas &prev,
                                  const PreintMeas &preint) {
   if (preint.dt == 0.0)
-    return prev_preint;
+    return prev;
 
-  PreintMeas temp_preint = preint;
-  temp_preint.cov = Mat9::Zero();
+  PreintMeas temp = preint;
+  temp.cov = Mat9::Zero();
 
-  temp_preint.cov = propagatePreintCov(prev_preint, preint);
+  temp.cov = propagatePreintCov(prev, preint);
 
   // Propagation of acc Jacobians
-  temp_preint.d_delta_p_d_bf =
-      prev_preint.d_delta_p_d_bf +
-      (temp_preint.dt * prev_preint.d_delta_v_d_bf) +
-      (prev_preint.delta_R * temp_preint.d_delta_p_d_bf);
+  temp.d_delta_p_d_bf = prev.d_delta_p_d_bf + (temp.dt * prev.d_delta_v_d_bf) +
+                        (prev.delta_R * temp.d_delta_p_d_bf);
 
-  temp_preint.d_delta_v_d_bf =
-      prev_preint.d_delta_v_d_bf +
-      (prev_preint.delta_R * temp_preint.d_delta_v_d_bf);
+  temp.d_delta_v_d_bf =
+      prev.d_delta_v_d_bf + (prev.delta_R * temp.d_delta_v_d_bf);
+
+  const Mat3 dpw = propagateJacobianRp(prev.delta_R, prev.d_delta_R_d_bw,
+                                       temp.delta_p, temp.d_delta_p_d_bw);
+  const Mat3 dvw = propagateJacobianRp(prev.delta_R, prev.d_delta_R_d_bw,
+                                       temp.delta_v, temp.d_delta_v_d_bw);
+
+  const Mat3 drw =
+      propagateJacobianRR(temp.delta_R.transpose(), prev.d_delta_R_d_bw,
+                          temp.delta_R, temp.d_delta_R_d_bw);
+  const Vec3 dpt = propagateJacobianRp(prev.delta_R, prev.d_delta_R_d_t,
+                                       temp.delta_p, temp.d_delta_p_d_t);
+
+  const Vec3 dvt = propagateJacobianRp(prev.delta_R, prev.d_delta_R_d_t,
+                                       temp.delta_v, temp.d_delta_v_d_t);
+  const Vec3 drt =
+      propagateJacobianRR(temp.delta_R.transpose(), prev.d_delta_R_d_t,
+                          temp.delta_R, temp.d_delta_R_d_t);
 
   // Propagation of gyr Jacobians
-  temp_preint.d_delta_p_d_bw =
-      prev_preint.d_delta_p_d_bw +
-      (temp_preint.dt * prev_preint.d_delta_v_d_bw) +
-      propagateJacobianRp(prev_preint.delta_R, prev_preint.d_delta_R_d_bw,
-                          temp_preint.delta_p, temp_preint.d_delta_p_d_bw);
-
-  temp_preint.d_delta_v_d_bw =
-      prev_preint.d_delta_v_d_bw +
-      propagateJacobianRp(prev_preint.delta_R, prev_preint.d_delta_R_d_bw,
-                          temp_preint.delta_v, temp_preint.d_delta_v_d_bw);
-  temp_preint.d_delta_R_d_bw = propagateJacobianRR(
-      temp_preint.delta_R.transpose(), prev_preint.d_delta_R_d_bw,
-      temp_preint.delta_R, temp_preint.d_delta_R_d_bw);
+  temp.d_delta_p_d_bw =
+      prev.d_delta_p_d_bw + (temp.dt * prev.d_delta_v_d_bw) + dpw;
+  temp.d_delta_v_d_bw = prev.d_delta_v_d_bw + dvw;
+  temp.d_delta_R_d_bw = drw;
 
   // Propagation of time-shift Jacobians
-  temp_preint.d_delta_p_d_t =
-      prev_preint.d_delta_p_d_t + (temp_preint.dt * prev_preint.d_delta_v_d_t) +
-      propagateJacobianRp(prev_preint.delta_R, prev_preint.d_delta_R_d_t,
-                          temp_preint.delta_p, temp_preint.d_delta_p_d_t);
-
-  temp_preint.d_delta_v_d_t =
-      prev_preint.d_delta_v_d_t +
-      propagateJacobianRp(prev_preint.delta_R, prev_preint.d_delta_R_d_t,
-                          temp_preint.delta_v, temp_preint.d_delta_v_d_t);
-  temp_preint.d_delta_R_d_t = propagateJacobianRR(
-      temp_preint.delta_R.transpose(), prev_preint.d_delta_R_d_t,
-      temp_preint.delta_R, temp_preint.d_delta_R_d_t);
+  temp.d_delta_p_d_t =
+      prev.d_delta_p_d_t + (temp.dt * prev.d_delta_v_d_t) + dpt;
+  temp.d_delta_v_d_t = prev.d_delta_v_d_t + dvt;
+  temp.d_delta_R_d_t = drt;
 
   // Chunck combination
-  temp_preint.delta_p = prev_preint.delta_p +
-                        prev_preint.delta_v * temp_preint.dt +
-                        prev_preint.delta_R * temp_preint.delta_p;
-  temp_preint.delta_v =
-      prev_preint.delta_v + prev_preint.delta_R * temp_preint.delta_v;
-  temp_preint.delta_R = prev_preint.delta_R * temp_preint.delta_R;
+  temp.delta_p =
+      prev.delta_p + prev.delta_v * temp.dt + prev.delta_R * temp.delta_p;
+  temp.delta_v = prev.delta_v + prev.delta_R * temp.delta_v;
+  temp.delta_R = prev.delta_R * temp.delta_R;
 
-  temp_preint.dt = prev_preint.dt + temp_preint.dt;
-  temp_preint.dt_sq_half = 0.5 * temp_preint.dt * temp_preint.dt;
+  temp.dt = prev.dt + temp.dt;
+  temp.dt_sq_half = 0.5 * temp.dt * temp.dt;
 
-  return temp_preint;
+  return temp;
 };
 
 } // namespace ugpm
