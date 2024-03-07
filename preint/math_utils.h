@@ -658,86 +658,55 @@ inline Mat9 propagatePreintCov(const PreintMeas &prev, const PreintMeas &curr) {
 inline Mat3 propagateJacobianRp(const Mat3 &R, const Mat3 &d_r, const Vec3 &p,
                                 const Mat3 &d_p) {
 
-  Mat3 output;
-  Mat9_3 d_R = jacobianYX(R) * jacobianExpMapZeroM(d_r);
-  output << R.row(0) * d_p + d_R.row(0) * p(0) + d_R.row(3) * p(1) +
-                d_R.row(6) * p(2),
-      R.row(1) * d_p + d_R.row(1) * p(0) + d_R.row(4) * p(1) +
-          d_R.row(7) * p(2),
-      R.row(2) * d_p + d_R.row(2) * p(0) + d_R.row(5) * p(1) +
-          d_R.row(8) * p(2);
-
-  return output;
+  const Mat9_3 d_R = jacobianYX(R) * jacobianExpMapZeroM(d_r);
+  const Mat3 D0 = d_R.block<3, 3>(0, 0);
+  const Mat3 D3 = d_R.block<3, 3>(3, 0);
+  const Mat3 D6 = d_R.block<3, 3>(6, 0);
+  return R * d_p + p(0) * D0 + p(1) * D3 + p(2) * D6;
 }
+
 inline Vec3 propagateJacobianRp(const Mat3 &R, const Vec3 &d_r, const Vec3 &p,
                                 const Vec3 &d_p) {
 
-  Vec3 output;
-  Vec9 d_R = jacobianYX(R) * jacobianExpMapZeroV(d_r);
-  output << R.row(0) * d_p + d_R(0) * p(0) + d_R(3) * p(1) + d_R(6) * p(2),
-      R.row(1) * d_p + d_R(1) * p(0) + d_R(4) * p(1) + d_R(7) * p(2),
-      R.row(2) * d_p + d_R(2) * p(0) + d_R(5) * p(1) + d_R(8) * p(2);
-
-  return output;
+  const Vec9 d_R = jacobianYX(R) * jacobianExpMapZeroV(d_r);
+  const Eigen::Map<const Mat3> DR(d_R.data());
+  return R * d_p + DR * p;
 }
 
 inline Mat3 propagateJacobianRR(const Mat3 &R1, const Mat3 &d_r1,
                                 const Mat3 &R2, const Mat3 &d_r2) {
 
-  Mat3 output;
-  Mat9_3 d_R1 = jacobianYX(R1) * jacobianExpMapZeroM(d_r1);
-  Mat9_3 d_R2 = jacobianYX(R2) * jacobianExpMapZeroM(d_r2);
-  Mat9_3 d_RR;
-  d_RR << R1.row(0) * d_R2.block<3, 3>(0, 0) + d_R1.row(0) * R2(0, 0) +
-              d_R1.row(3) * R2(1, 0) + d_R1.row(6) * R2(2, 0),
-      R1.row(1) * d_R2.block<3, 3>(0, 0) + d_R1.row(1) * R2(0, 0) +
-          d_R1.row(4) * R2(1, 0) + d_R1.row(7) * R2(2, 0),
-      R1.row(2) * d_R2.block<3, 3>(0, 0) + d_R1.row(2) * R2(0, 0) +
-          d_R1.row(5) * R2(1, 0) + d_R1.row(8) * R2(2, 0),
-      R1.row(0) * d_R2.block<3, 3>(3, 0) + d_R1.row(0) * R2(0, 1) +
-          d_R1.row(3) * R2(1, 1) + d_R1.row(6) * R2(2, 1),
-      R1.row(1) * d_R2.block<3, 3>(3, 0) + d_R1.row(1) * R2(0, 1) +
-          d_R1.row(4) * R2(1, 1) + d_R1.row(7) * R2(2, 1),
-      R1.row(2) * d_R2.block<3, 3>(3, 0) + d_R1.row(2) * R2(0, 1) +
-          d_R1.row(5) * R2(1, 1) + d_R1.row(8) * R2(2, 1),
-      R1.row(0) * d_R2.block<3, 3>(6, 0) + d_R1.row(0) * R2(0, 2) +
-          d_R1.row(3) * R2(1, 2) + d_R1.row(6) * R2(2, 2),
-      R1.row(1) * d_R2.block<3, 3>(6, 0) + d_R1.row(1) * R2(0, 2) +
-          d_R1.row(4) * R2(1, 2) + d_R1.row(7) * R2(2, 2),
-      R1.row(2) * d_R2.block<3, 3>(6, 0) + d_R1.row(2) * R2(0, 2) +
-          d_R1.row(5) * R2(1, 2) + d_R1.row(8) * R2(2, 2);
+  const Mat9_3 d_R1 = jacobianYX(R1) * jacobianExpMapZeroM(d_r1);
+  const Mat9_3 d_R2 = jacobianYX(R2) * jacobianExpMapZeroM(d_r2);
 
-  output = jacobianLogMap(R1 * R2) * d_RR;
-  return output;
+  const Eigen::Map<const Mat3> DR2(d_R2.data());
+  const Mat3 P0 = R1 * d_R2.block<3, 3>(0, 0);
+  const Mat3 P3 = R1 * d_R2.block<3, 3>(3, 0);
+  const Mat3 P6 = R1 * d_R2.block<3, 3>(6, 0);
+
+  const Mat3 D0 = d_R1.block<3, 3>(0, 0);
+  const Mat3 D3 = d_R1.block<3, 3>(3, 0);
+  const Mat3 D6 = d_R1.block<3, 3>(6, 0);
+
+  Mat9_3 d_RR;
+  d_RR.block<3, 3>(0, 0) = P0 + D0 * R2(0, 0) + D3 * R2(1, 0) + D6 * R2(2, 0);
+  d_RR.block<3, 3>(3, 0) = P3 + D0 * R2(0, 1) + D3 * R2(1, 1) + D6 * R2(2, 1);
+  d_RR.block<3, 3>(6, 0) = P6 + D0 * R2(0, 2) + D3 * R2(1, 2) + D6 * R2(2, 2);
+
+  return jacobianLogMap(R1 * R2) * d_RR;
 }
+
 inline Vec3 propagateJacobianRR(const Mat3 &R1, const Vec3 &d_r1,
                                 const Mat3 &R2, const Vec3 &d_r2) {
+  const Vec9 d_R1 = jacobianYX(R1) * jacobianExpMapZeroV(d_r1);
+  const Vec9 d_R2 = jacobianYX(R2) * jacobianExpMapZeroV(d_r2);
 
-  Vec3 output;
-  Vec9 d_R1 = jacobianYX(R1) * jacobianExpMapZeroV(d_r1);
-  Vec9 d_R2 = jacobianYX(R2) * jacobianExpMapZeroV(d_r2);
-  Vec9 d_RR;
-  d_RR << R1.row(0) * d_R2.block<3, 1>(0, 0) + d_R1(0) * R2(0, 0) +
-              d_R1(3) * R2(1, 0) + d_R1(6) * R2(2, 0),
-      R1.row(1) * d_R2.block<3, 1>(0, 0) + d_R1(1) * R2(0, 0) +
-          d_R1(4) * R2(1, 0) + d_R1(7) * R2(2, 0),
-      R1.row(2) * d_R2.block<3, 1>(0, 0) + d_R1(2) * R2(0, 0) +
-          d_R1(5) * R2(1, 0) + d_R1(8) * R2(2, 0),
-      R1.row(0) * d_R2.block<3, 1>(3, 0) + d_R1(0) * R2(0, 1) +
-          d_R1(3) * R2(1, 1) + d_R1(6) * R2(2, 1),
-      R1.row(1) * d_R2.block<3, 1>(3, 0) + d_R1(1) * R2(0, 1) +
-          d_R1(4) * R2(1, 1) + d_R1(7) * R2(2, 1),
-      R1.row(2) * d_R2.block<3, 1>(3, 0) + d_R1(2) * R2(0, 1) +
-          d_R1(5) * R2(1, 1) + d_R1(8) * R2(2, 1),
-      R1.row(0) * d_R2.block<3, 1>(6, 0) + d_R1(0) * R2(0, 2) +
-          d_R1(3) * R2(1, 2) + d_R1(6) * R2(2, 2),
-      R1.row(1) * d_R2.block<3, 1>(6, 0) + d_R1(1) * R2(0, 2) +
-          d_R1(4) * R2(1, 2) + d_R1(7) * R2(2, 2),
-      R1.row(2) * d_R2.block<3, 1>(6, 0) + d_R1(2) * R2(0, 2) +
-          d_R1(5) * R2(1, 2) + d_R1(8) * R2(2, 2);
+  const Eigen::Map<const Mat3> DR1(d_R1.data());
+  const Eigen::Map<const Mat3> DR2(d_R2.data());
+  const Mat3 P = DR1 * R2 + R1 * DR2;
+  const Eigen::Map<const Vec9> d_RR(P.data());
 
-  output = jacobianLogMap(R1 * R2) * d_RR;
-  return output;
+  return jacobianLogMap(R1 * R2) * d_RR;
 }
 
 inline PreintMeas combinePreints(const PreintMeas &prev,
