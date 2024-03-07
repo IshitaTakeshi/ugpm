@@ -57,7 +57,7 @@ inline Vec3 stdToVec3(const std::vector<double> &v) {
 // Data structure to store individual measurements (can be acc or gyr data)
 struct ImuSample {
   double t;
-  double data[3];
+  Vec3 data;
 };
 
 // Data structure to store a collection of IMU measurements
@@ -295,8 +295,8 @@ struct PreintOption {
 };
 
 struct PreintPrior {
-  std::vector<double> acc_bias = {0, 0, 0};
-  std::vector<double> gyr_bias = {0, 0, 0};
+  Vec3 acc_bias = Vec3::Zero();
+  Vec3 gyr_bias = Vec3::Zero();
 };
 
 struct GPSeHyper {

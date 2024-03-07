@@ -432,15 +432,11 @@ public:
     gyr_time_.resize(nb_gyr_);
     acc_time_.resize(nb_acc_);
     for (size_t i = 0; i < nb_gyr_; ++i) {
-      gyr_data_(0, i) = imu_data.gyr[i].data[0] - bias_prior.gyr_bias[0];
-      gyr_data_(1, i) = imu_data.gyr[i].data[1] - bias_prior.gyr_bias[1];
-      gyr_data_(2, i) = imu_data.gyr[i].data[2] - bias_prior.gyr_bias[2];
+      gyr_data_.col(i) = imu_data.gyr[i].data - bias_prior.gyr_bias;
       gyr_time_(i) = imu_data.gyr[i].t;
     }
     for (size_t i = 0; i < nb_acc_; ++i) {
-      acc_data_(0, i) = imu_data.acc[i].data[0] - bias_prior.acc_bias[0];
-      acc_data_(1, i) = imu_data.acc[i].data[1] - bias_prior.acc_bias[1];
-      acc_data_(2, i) = imu_data.acc[i].data[2] - bias_prior.acc_bias[2];
+      acc_data_.col(i) = imu_data.acc[i].data - bias_prior.acc_bias;
       acc_time_(i) = imu_data.acc[i].t;
     }
 
@@ -773,15 +769,11 @@ public:
     gyr_time_.resize(nb_gyr);
     acc_time_.resize(nb_acc);
     for (size_t i = 0; i < nb_gyr; ++i) {
-      gyr_data_(0, i) = temp_imu_data.gyr[i].data[0] - bias_prior.gyr_bias[0];
-      gyr_data_(1, i) = temp_imu_data.gyr[i].data[1] - bias_prior.gyr_bias[1];
-      gyr_data_(2, i) = temp_imu_data.gyr[i].data[2] - bias_prior.gyr_bias[2];
+      gyr_data_.col(i) = temp_imu_data.gyr[i].data - bias_prior.gyr_bias;
       gyr_time_(i) = temp_imu_data.gyr[i].t;
     }
     for (size_t i = 0; i < nb_acc; ++i) {
-      acc_data_(0, i) = temp_imu_data.acc[i].data[0] - bias_prior.acc_bias[0];
-      acc_data_(1, i) = temp_imu_data.acc[i].data[1] - bias_prior.acc_bias[1];
-      acc_data_(2, i) = temp_imu_data.acc[i].data[2] - bias_prior.acc_bias[2];
+      acc_data_.col(i) = temp_imu_data.acc[i].data - bias_prior.acc_bias;
       acc_time_(i) = temp_imu_data.acc[i].t;
     }
 
