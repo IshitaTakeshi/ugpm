@@ -743,12 +743,26 @@ VecX calc_state_time(const double start_t_, const int nb_state_,
   return state_time;
 }
 
+MatX computeStateCorr(const MatX &state_J, const VecX &state_std,
+                      const int nb_state_) {
+  const MatX I = MatX::Identity(6 * nb_state_, 6 * nb_state_);
+  const MatX JTJ = state_J.transpose() * state_J;
+  const Eigen::LLT<MatX> cor_llt(JTJ + 0.00001 * I);
+  MatX L_cor = cor_llt.matrixL();
+  Eigen::TriangularView<MatX, Eigen::Lower> L =
+      L_cor.triangularView<Eigen::Lower>();
+  const MatX correlation = L.transpose().solve(L.solve(I));
+  const VecX d_inv_cor = correlation.diagonal().array().sqrt().inverse();
+  const VecX temp_d_cor = state_std.array() * (d_inv_cor.array());
+  return temp_d_cor.asDiagonal() * correlation * (temp_d_cor.asDiagonal());
+}
+
 // Se3 Integrator for UGPM
 class Se3Integrator {
 
 public:
   Se3Integrator(const ImuData &imu_data, const double start_time,
-                const PreintPrior bias_prior, const double window_duration,
+                const PreintPrior &bias_prior, const double window_duration,
                 const double state_freq = 50.0, const int nb_overlap = kOverlap,
                 const bool correlate = true)
       : hyper_(6), correlate_(correlate),
@@ -911,7 +925,7 @@ public:
           temp_J_5;
 
       // Launch the correlation computation in a separate thread
-      state_cor_ = computeStateCorr(state_J, state_std);
+      state_cor_ = computeStateCorr(state_J, state_std, nb_state_);
     }
 
     // Solve the optimisation problem
@@ -1321,8 +1335,8 @@ private:
         Vec3 d_r_shift = (prev[1] - prev[0]) / kNumDtJacobianDelta;
 
         d_r_dt_local_shift_.col(i) = jacobianRighthandSO3(prev[0]) * d_r_shift;
-        delta_r_time_.col(i) =
-            jacobianRighthandSO3(prev[0]) * (prev[0] - (state_r_temp_.col(i)));
+        const Mat3 J = jacobianRighthandSO3(prev[0]);
+        delta_r_time_.col(i) = J * (prev[0] - (state_r_temp_.col(i)));
       }
     }
     // Prepare for the gyr bias diff
@@ -1366,10 +1380,9 @@ private:
           }
           Vec3 d_r_shift = (prev[1] - prev[0]) / kNumDtJacobianDelta;
 
-          d_r_bw_local_shift_[axis].col(i) =
-              jacobianRighthandSO3(prev[0]) * d_r_shift;
-          delta_r_bw_[axis].col(i) = jacobianRighthandSO3(prev[0]) *
-                                     (prev[0] - (state_r_temp_.col(i)));
+          const Mat3 J = jacobianRighthandSO3(prev[0]);
+          d_r_bw_local_shift_[axis].col(i) = J * d_r_shift;
+          delta_r_bw_[axis].col(i) = J * (prev[0] - (state_r_temp_.col(i)));
         }
         revolution = {0.0, 0.0};
         prev = {Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero()};
@@ -1389,10 +1402,9 @@ private:
           }
           Vec3 d_r_shift = (prev[1] - prev[0]) / kNumDtJacobianDelta;
 
-          d_r_bw_local_shift_[axis].col(i) =
-              jacobianRighthandSO3(prev[0]) * d_r_shift;
-          delta_r_bw_[axis].col(i) = jacobianRighthandSO3(prev[0]) *
-                                     (prev[0] - (state_r_temp_.col(i)));
+          const Mat3 J = jacobianRighthandSO3(prev[0]);
+          d_r_bw_local_shift_[axis].col(i) = J * d_r_shift;
+          delta_r_bw_[axis].col(i) = J * (prev[0] - (state_r_temp_.col(i)));
         }
       }
     }
@@ -1408,23 +1420,18 @@ private:
     VecX dt_state = (state_time_.array() - start_t_).matrix();
 
     for (int axis = 0; axis < 3; ++axis) {
-      if (axis < 3) {
-        state_r.col(axis) = K_int_K_inv_[axis] * state_d_r_.col(axis) +
-                            (dt_state * hyper_[axis].mean);
-      }
+      state_r.col(axis) = K_int_K_inv_[axis] * state_d_r_.col(axis) +
+                          (dt_state * hyper_[axis].mean);
     }
 
     d_d_r_dt.resize(3, VecX(nb_state_));
     d_state_bw.resize(3, MatX(nb_state_, 3));
     for (int i = 0; i < nb_state_; ++i) {
-      Vec3 d_r = inverseJacobianRighthandSO3(state_r.row(i).transpose()) *
-                 d_r_dt_local_.col(i);
+      const Mat3 IJ = inverseJacobianRighthandSO3(state_r.row(i).transpose());
+      const Vec3 d_r = IJ * d_r_dt_local_.col(i);
 
       // For the timeshift
-      const Vec3 temp_r =
-          state_r.row(i).transpose() +
-          inverseJacobianRighthandSO3(state_r.row(i).transpose()) *
-              delta_r_time.col(i);
+      const Vec3 temp_r = state_r.row(i).transpose() + IJ * delta_r_time.col(i);
       const Vec3 d_r_dt =
           inverseJacobianRighthandSO3(temp_r) * d_r_dt_local_shift.col(i);
       Vec3 temp_d_d_r_d_t = (d_r_dt - d_r) / kNumDtJacobianDelta;
@@ -1435,9 +1442,7 @@ private:
       // For the gyr bias
       for (int axis = 0; axis < 3; ++axis) {
         const Vec3 temp_r_w =
-            state_r.row(i).transpose() +
-            inverseJacobianRighthandSO3(state_r.row(i).transpose()) *
-                delta_r_bw[axis].col(i);
+            state_r.row(i).transpose() + IJ * delta_r_bw[axis].col(i);
         const Vec3 d_r_dt = inverseJacobianRighthandSO3(temp_r_w) *
                             d_r_bw_local_shift[axis].col(i);
         const Vec3 temp_d_d_r_d_t = (d_r_dt - d_r) / kNumGyrBiasJacobianDelta;
@@ -1479,19 +1484,6 @@ private:
       hyper_[i].sz2 = imu_data.gyr_var;
       hyper_[i + 3].sz2 = imu_data.acc_var;
     }
-  }
-
-  MatX computeStateCorr(const MatX &state_J, const VecX &state_std) {
-    const MatX I = MatX::Identity(6 * nb_state_, 6 * nb_state_);
-    const MatX JTJ = state_J.transpose() * state_J;
-    const Eigen::LLT<MatX> cor_llt(JTJ + 0.00001 * I);
-    MatX L_cor = cor_llt.matrixL();
-    Eigen::TriangularView<MatX, Eigen::Lower> L =
-        L_cor.triangularView<Eigen::Lower>();
-    const MatX correlation = L.transpose().solve(L.solve(I));
-    const VecX d_inv_cor = correlation.diagonal().array().sqrt().inverse();
-    const VecX temp_d_cor = state_std.array() * (d_inv_cor.array());
-    return temp_d_cor.asDiagonal() * correlation * (temp_d_cor.asDiagonal());
   }
 };
 
