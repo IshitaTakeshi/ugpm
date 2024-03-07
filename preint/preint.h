@@ -31,7 +31,6 @@ void rotIterativeIntegration(const Eigen::MatrixXd &w,
                              const SortIndexTracker2<double> &t,
                              const double start_t_, const int start_index_,
                              std::vector<PreintMeas> &output) {
-
   Mat3 rot_mat = Mat3::Identity();
   Mat9 cov = Mat9::Zero();
 
@@ -55,14 +54,12 @@ void rotIterativeIntegration(const Eigen::MatrixXd &w,
     if (gyr_norm > 0.0000000001) {
 
       // Turn the angular velocity into skew-simmetric matrix
-      Mat3 gyr_skew_mat;
-      gyr_skew_mat << 0, -gyr_dt[2], gyr_dt[1], gyr_dt[2], 0, -gyr_dt[0],
-          -gyr_dt[1], gyr_dt[0], 0;
+      const Mat3 gyr_skew_mat = skew(gyr_dt);
 
-      double s_gyr_norm = std::sin(gyr_norm);
-      double gyr_norm_sq = gyr_norm * gyr_norm;
-      double scalar_2 = (1 - std::cos(gyr_norm)) / gyr_norm_sq;
-      Mat3 skew_mat_sq = gyr_skew_mat * gyr_skew_mat;
+      const double s_gyr_norm = std::sin(gyr_norm);
+      const double gyr_norm_sq = gyr_norm * gyr_norm;
+      const double scalar_2 = (1 - std::cos(gyr_norm)) / gyr_norm_sq;
+      const Mat3 skew_mat_sq = gyr_skew_mat * gyr_skew_mat;
 
       e_R = e_R + ((s_gyr_norm / gyr_norm) * gyr_skew_mat) +
             (scalar_2 * skew_mat_sq);
@@ -99,24 +96,21 @@ void rotIterativeIntegration(const Eigen::MatrixXd &w,
   }
 }
 
-void rotIterativeIntegration(
-    const Eigen::MatrixXd &w, const SortIndexTracker2<double> &t,
-    const double start_index_,
-    std::vector<Eigen::Matrix3d, Eigen::aligned_allocator<Eigen::Matrix3d>>
-        &output) {
+void rotIterativeIntegration(const Eigen::MatrixXd &w,
+                             const SortIndexTracker2<double> &t,
+                             const double start_index_,
+                             std::vector<Eigen::Matrix3d> &output) {
   Mat3 rot_mat = Mat3::Identity();
 
   output[0] = rot_mat;
 
   for (int i = 0; i < (t.size() - 1); ++i) {
     // Prepare some variables for convenience sake
-    double dt = t.get(i + 1) - t.get(i);
+    const double dt = t.get(i + 1) - t.get(i);
 
-    Vec3 gyr_dt = w.col(i) * dt;
+    const Vec3 gyr_dt = w.col(i) * dt;
 
-    Mat3 e_R = expMap(gyr_dt);
-
-    rot_mat = rot_mat * e_R;
+    rot_mat = rot_mat * expMap(gyr_dt);
     output[i + 1] = rot_mat;
 
     // Reproject the preintegrated measurements from in the starting frame
@@ -163,15 +157,15 @@ rotPreint(const SortIndexTracker2<double> &t,
                             output);
 
     // Compute the numerical Jacobians for post integration
-    std::vector<Mat3, Eigen::aligned_allocator<Mat3>> d_R_dt(output.size());
-    std::vector<std::vector<Mat3, Eigen::aligned_allocator<Mat3>>> d_R_d_bw(
-        3, std::vector<Mat3, Eigen::aligned_allocator<Mat3>>(output.size()));
+    std::vector<Mat3> d_R_dt(output.size());
+    std::vector<std::vector<Mat3>> d_R_d_bw(3,
+                                            std::vector<Mat3>(output.size()));
 
     rotIterativeIntegration(inter_w_shifted, t, start_index_, d_R_dt);
     for (int j = 0; j < t.size(); ++j) {
       if (interest_t[j]) {
         output[j].d_delta_R_d_t =
-            logMap(output[j].delta_R.transpose() * (d_R_dt[j])) /
+            logMap(output[j].delta_R.transpose() * d_R_dt[j]) /
             kNumDtJacobianDelta;
       }
     }
@@ -185,13 +179,13 @@ rotPreint(const SortIndexTracker2<double> &t,
       for (int j = 0; j < t.size(); ++j) {
         if (interest_t[j]) {
           output[j].d_delta_R_d_bw.col(i) =
-              logMap(output[j].delta_R.transpose() * (d_R_d_bw[i][j])) /
+              logMap(output[j].delta_R.transpose() * d_R_d_bw[i][j]) /
               kNumGyrBiasJacobianDelta;
         }
       }
     }
   } else {
-    std::vector<Mat3, Eigen::aligned_allocator<Mat3>> temp_R(t.size());
+    std::vector<Mat3> temp_R(t.size());
     rotIterativeIntegration(inter_w, t, start_index_, temp_R);
     for (int i = 0; i < t.size(); ++i) {
       output[i].delta_R = temp_R[i];
@@ -1217,7 +1211,7 @@ private:
     state_r_temp_.resize(3, nb_state_);
     const Mat3 start_R = preint.get(2, 0).delta_R;
     std::vector<double> revolution(2, 0.0);
-    std::vector<Vec3, Eigen::aligned_allocator<Vec3>> prev(2, Vec3::Zero());
+    std::vector<Vec3> prev(2, Vec3::Zero());
     for (int i = nb_overlap_; i < nb_state_; ++i) {
       for (int j = 0; j < 2; ++j) {
         Vec3 temp_r = logMap(start_R.transpose() * preint.get(j, i).delta_R);
